@@ -87,7 +87,7 @@ describe('Drawer (bound sessions)', () => {
 
   it('shows the Agent mark, pane count badge, and Inbox text label on Window rows', async () => {
     getWindowsForSessions.mockResolvedValueOnce({
-      '$1': [{ id: '@1', name: 'main', panes: 2 }],
+      '$1': [{ id: '@1', name: 'main', panes: 2 }, { id: '@2', name: 'shell', panes: 1 }],
       '$2': [],
     });
     await render({ windowAgents: { '@1': 'codex' }, windowInboxViews: { '@1': 'needs' } });
@@ -95,7 +95,9 @@ describe('Drawer (bound sessions)', () => {
     const row = container.querySelector('[data-window-id="@1"]');
     expect(row.querySelector('.agent-mark')?.getAttribute('aria-label')).toBe('codex');
     expect(row.querySelector('.session-window-count')?.textContent).toBe('2');
-    expect(row.querySelector('.session-window-inbox-label')?.textContent).toBe('需要你');
+    expect(row.querySelector('.inbox-chip')?.textContent).toBe('需要你');
+    const singlePane = container.querySelector('[data-window-id="@2"]');
+    expect(singlePane.querySelector('.session-window-count')?.textContent).toBe('1');
   });
 
   it('clicking a name toggles its Window list', async () => {

@@ -525,14 +525,15 @@ export default function Drawer({
             <section key={name} className={`session-section${name === currentSessionName ? ' is-current' : ''}`}>
               <div className="session-section-header" role="treeitem" aria-expanded={expandedSessions.has(name)} onClick={() => toggleSession(name)}>
                   <button type="button" aria-expanded={expandedSessions.has(name)} aria-current={name === currentSessionName ? 'page' : undefined} className="session-section-title">
-                  <span className="session-section-icon"><CommandIcon /></span><span className="session-section-label">{name}</span>{pendingSessions.has(name) && <span className="session-pending-label">{t('inbox.pending')}</span>}
+                  <span className="session-section-icon"><CommandIcon /></span><span className="session-section-label">{name}</span>
                 </button>
                 <button
-                  type="button"
+                type="button"
                   className={`session-section-toggle${expandedSessions.has(name) ? ' is-open' : ''}`}
                   aria-expanded={expandedSessions.has(name)}
                   aria-label={`${name} — ${t(expandedSessions.has(name) ? 'doc.tocCollapse' : 'doc.tocExpand')}`}
                 ><ChevronDownIcon /></button>
+                {pendingSessions.has(name) && <span className="session-pending-label">{t('inbox.pending')}</span>}
               <button
                 type="button"
                 className="session-section-menu"
@@ -577,8 +578,8 @@ export default function Drawer({
                     >
                       <span className="session-window-label">{window.name || window.id}</span>
                       {windowAgents[window.id] && <AgentMark agent={windowAgents[window.id]} />}
-                      {window.panes > 1 && <span className="session-window-count" aria-label={`${window.panes} panes`}>{window.panes}</span>}
-                      {windowInboxViews[window.id] && <span className={`session-window-inbox-label ${windowInboxViews[window.id]}`}>{VIEW_LABEL[windowInboxViews[window.id] as InboxView]}</span>}
+                      {windowInboxViews[window.id] && <span className={`inbox-chip ${windowInboxViews[window.id]}`} aria-label={VIEW_LABEL[windowInboxViews[window.id] as InboxView]}>{VIEW_LABEL[windowInboxViews[window.id] as InboxView]}</span>}
+                      <span className="session-window-count" aria-label={`${window.panes} panes`}>{window.panes}</span>
                       <button type="button" className="session-window-menu" aria-label={`${window.name || window.id} ${t('common.more')}`} onClick={(event) => { event.stopPropagation(); onManageWindow(name, window); }}><MoreHorizontalIcon /></button>
                     </div>
                   ))}
