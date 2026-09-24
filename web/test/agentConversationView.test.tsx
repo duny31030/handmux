@@ -2195,6 +2195,25 @@ describe('generic Agent Conversation UI', () => {
     }
   });
 
+  it('notifies the host before opening a ToolChip sheet', () => {
+    const onOpenTool = vi.fn(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    const { container } = render(<AgentConversationView conversation={controller({
+      items: [{
+        key: 'open-tool', provisional: false,
+        item: {
+          id: 'open-tool', sessionId: 'session-1', status: 'complete', kind: 'tool_call',
+          callId: 'open-tool', name: 'exec_command', input: { cmd: 'pwd' },
+        },
+      }],
+    })} onOpenTool={onOpenTool} />);
+
+    fireEvent.click(container.querySelector('.chat-tool-head')!);
+    expect(onOpenTool).toHaveBeenCalledOnce();
+    expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+
   it('cancels a pending long press when the conversation session changes', () => {
     vi.useFakeTimers();
     try {

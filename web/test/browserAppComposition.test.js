@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 const source = readFileSync(path.resolve(process.cwd(), 'src/App.tsx'), 'utf8');
 const surfaceHost = readFileSync(path.resolve(process.cwd(), 'src/components/PaneSurfaceHost.tsx'), 'utf8');
+const composer = readFileSync(path.resolve(process.cwd(), 'src/components/AgentConversationComposer.tsx'), 'utf8');
 const styles = readFileSync(path.resolve(process.cwd(), 'src/styles.css'), 'utf8');
 
 describe('built-in browser App composition', () => {
@@ -15,6 +16,17 @@ describe('built-in browser App composition', () => {
     expect(source).toContain('controls={chatLens ? (');
     expect(source).toContain('key={`conversation-view\\0');
     expect(surfaceHost).toContain('key={`controls\\0${controlsKey}`}');
+  });
+
+  it('keeps chat composer lifetime independent from topology revisions', () => {
+    const controlsKeyBlock = source.match(
+      /const paneSurfaceControlsKey =([\s\S]*?)const completedEntryRequest =/,
+    )?.[1] ?? '';
+    const chatControlsKey = controlsKeyBlock.split(': `${currentPaneId ??')[0];
+    expect(controlsKeyBlock).toContain('chatLens');
+    expect(controlsKeyBlock).toContain('conversation-controls');
+    expect(chatControlsKey).not.toContain('controlsRevision');
+    expect(composer).not.toContain('composerFocusIntentRef');
   });
 
   it('keeps the selected chat lens mounted through transient capability failures', () => {
