@@ -1826,7 +1826,7 @@ describe('App consumes conversation control commands', () => {
 // flight, and the keyboard goes away the moment the content arrives. The composer is mounted before the
 // content (its identity comes from Runtime discovery, not from the page), so a focus that survives means
 // the textarea must be the SAME element across the loading → ready switch.
-describe.each(['claude', 'codebuddy'])('App %s chat composer focus across the first page load', (agentId) => {
+describe.each(['claude', 'codebuddy', 'codex'])('App %s chat composer focus across the first page load', (agentId) => {
   const pane = { id: '%73', active: true, width: 80, height: 24, command: agentId, cwd: '/work', agent: agentId };
   const run = { agentId, paneId: pane.id, runId: 'load-run', sessionId: 'load-session' };
 

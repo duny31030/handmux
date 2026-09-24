@@ -106,4 +106,20 @@ describe('AgentConversationComposer mobile focus ownership', () => {
     await waitFor(() => expect(send).toHaveBeenCalledWith('继续', { queueHint: false }));
     expect(document.activeElement).toBe(input);
   });
+
+  it('restores composer focus after conversation hydration while the keyboard remains physically open', async () => {
+    const viewport = installVisualViewport();
+    const model = conversation();
+    const view = render(<AgentConversationComposer agentId="pi"
+      sessionId="hydrating-focus" busy={false} conversation={model} />);
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement;
+    input.focus();
+    viewport.height = 430;
+    input.blur(); // simulate the transient focus loss caused by the hydration repaint
+
+    view.rerender(<AgentConversationComposer agentId="pi"
+      sessionId="hydrating-focus" busy={false}
+      conversation={{ ...model, items: [{ key: 'loaded', type: 'text', role: 'assistant', content: 'loaded' }] } as AgentConversationController} />);
+    await waitFor(() => expect(document.activeElement).toBe(input));
+  });
 });

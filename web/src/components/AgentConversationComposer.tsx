@@ -7,7 +7,7 @@ import {
   isConversationDeliveryUnknown,
   type AgentConversationController,
 } from '../hooks/useAgentConversation.js';
-import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
+import type { FocusEvent as ReactFocusEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import type { ServerShortcuts } from '../shortcutMerge.js';
 import type { ConversationActivity } from '../agentConversationControlsApi.js';
 import { DEFAULT_SERVER_SHORTCUTS, mergeShortcuts, shortcutIdentity } from '../shortcutMerge.js';
@@ -91,6 +91,7 @@ export default function AgentConversationComposer({
   const ref = useRef<HTMLTextAreaElement>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
   const tapRef = useRef({ x: 0, y: 0, moved: false, finishVoice: false });
+  const composerFocusIntentRef = useRef(false);
   // iOS can dismiss the soft keyboard without blurring the textarea. Focus alone therefore cannot decide
   // whether a control tap should preserve the composer: keeping that stale focus through a sheet close can
   // reopen the keyboard. Track the last keyboard-down viewport height and preserve focus only while the
@@ -121,6 +122,20 @@ export default function AgentConversationComposer({
       return;
     }
     if (document.activeElement === ref.current) ref.current?.blur();
+  };
+  const rememberComposerFocus = (): void => {
+    composerFocusIntentRef.current = true;
+  };
+  const releaseComposerFocus = (event: ReactFocusEvent<HTMLTextAreaElement>): void => {
+    const next = event.relatedTarget;
+    if (next instanceof Element && next.matches('input, textarea, [contenteditable]')) {
+      composerFocusIntentRef.current = false;
+      return;
+    }
+    // iOS may dismiss the keyboard without blurring the textarea. Keep the intent only while the
+    // physical keyboard is still up so a hydration repaint can restore an accidental focus loss,
+    // while an intentional keyboard dismissal remains respected.
+    if (physicalKeyboardUp() === false) composerFocusIntentRef.current = false;
   };
   const draftLocked = conversation.sending || submitting;
   const draftLockedRef = useRef(draftLocked);
@@ -273,6 +288,19 @@ export default function AgentConversationComposer({
     }
   };
   useLayoutEffect(() => autoGrow(ref.current), [value]);
+  // Conversation hydration can repaint the timeline while the user is typing. If that repaint
+  // momentarily moves focus off the composer, restore it on the next frame while the keyboard is
+  // physically open. This is deliberately scoped to the composer and keyboard state; it does not
+  // reopen a keyboard the user already dismissed.
+  useLayoutEffect(() => {
+    if (!composerFocusIntentRef.current || !ref.current || document.activeElement === ref.current
+      || physicalKeyboardUp() !== true) return undefined;
+    const frame = requestAnimationFrame(() => {
+      if (composerFocusIntentRef.current && physicalKeyboardUp() === true
+        && document.activeElement !== ref.current) ref.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [conversation.items, conversation.status, key]);
   const cardPointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
     if (!isConversationComposerCardPointerTarget(event.currentTarget, event.target)) return;
     const button = event.target instanceof Element && event.target.closest('button');
@@ -331,6 +359,7 @@ export default function AgentConversationComposer({
       <div className={`cc-card${capturing ? ' recording' : ''}${recognizing ? ' recognizing' : ''}`}
         onPointerDown={cardPointerDown} onPointerMove={cardPointerMove} onPointerUp={cardPointerUp}>
         <textarea ref={ref} className="cc-text" rows={2} value={value}
+          onFocus={rememberComposerFocus} onBlur={releaseComposerFocus}
           aria-readonly={draftLocked}
           onBeforeInput={(event) => { if (draftLocked) event.preventDefault(); }}
           placeholder={t('chat.composer.placeholder')}
