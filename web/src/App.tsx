@@ -504,6 +504,10 @@ export default function App() {
     termRef.current?.blurInput?.();
     dockRef.current?.focusComposer?.();
   }, []);
+  const dismissChatKeyboard = useCallback(() => {
+    const input = document.querySelector<HTMLTextAreaElement>('.chat-composer textarea.cc-text');
+    if (document.activeElement === input) input?.blur();
+  }, []);
   const focusOwnerAtPointerRef = useRef<{ owner: FocusOwner | null; at: number }>({ owner: null, at: 0 });
   const captureTerminalOwner = useCallback(() => {
     if (!desktopInput) return;
@@ -2316,7 +2320,12 @@ export default function App() {
       : activationRun && currentAgentDescriptor?.capabilities.conversationActivation === true
         ? `conversation-activation\0${activationRun.runId}` : 'chat-unavailable';
   const paneSurfaceOwnerKey = `${currentPaneId ?? 'none'}\0${paneSurfaceIdentity}`;
-  const paneSurfaceControlsKey = `${composerSurfaceKey ?? 'none'}\0${controlsRevision}`;
+  // Conversation controls own the focused textarea. Keep them keyed to the session/window surface so a
+  // topology revision or pane correction can update the transcript without replacing the Composer DOM.
+  // Terminal controls still reset on an intentional pane navigation.
+  const paneSurfaceControlsKey = chatLens
+    ? `conversation-controls\0${composerSurfaceKey ?? 'none'}`
+    : `${currentPaneId ?? 'none'}\0${controlsRevision}`;
   const completedEntryRequest = completedChatEntry
     && completedChatEntry.paneId === current?.paneId
     && completedChatEntry.window === current?.window.id
@@ -3226,6 +3235,7 @@ export default function App() {
                   key={`conversation-view\0${normalizedConversationIdentity.agentId}\0${normalizedConversationIdentity.sessionId}`}
                   conversation={projectedConversation}
                   onAuthFail={onAuthFail}
+                  onOpenTool={dismissChatKeyboard}
                   working={conversationActivity === 'working'}
                   activity={conversationActivity}
                   onDocLinkTap={onDocLinkTap}

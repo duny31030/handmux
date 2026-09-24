@@ -119,6 +119,7 @@ export default function AgentConversationView({
   completedEntryRequest = 0,
   onCompletedEntryConsumed,
   onDocLinkTap,
+  onOpenTool,
   onAuthFail,
   conversationFontSize = 15,
 }: {
@@ -129,6 +130,7 @@ export default function AgentConversationView({
   completedEntryRequest?: number;
   onCompletedEntryConsumed?: (request: number) => void;
   onDocLinkTap?: (link: ConversationOutputLink, clientX: number, clientY: number) => void;
+  onOpenTool?: () => void;
   onAuthFail?: (() => void) | undefined;
   conversationFontSize?: number;
 }) {
@@ -591,14 +593,14 @@ export default function AgentConversationView({
                 renderTool={(toolMessage, toolRunning) => toolMessage.tool && (
                   <ToolChip tool={toolMessage.tool} running={toolRunning}
                     copyId={key}
-                    onOpen={() => setSheetKey(messageIdentity(toolMessage))} />
+                    onOpen={() => { onOpenTool?.(); setSheetKey(messageIdentity(toolMessage)); }} />
                 )}
                 renderGoal={(goalMessage) => goalMessage.goal && (
                   <ConversationGoalCard goal={goalMessage.goal} event={goalMessage.event ?? null}
-                    onOpen={setGoalSheet} />
+                    onOpen={(goal) => { onOpenTool?.(); setGoalSheet(goal); }} />
                 )}
                 downloadResource={conversation.downloadResource}
-                onOpenCompaction={setCompactionDetail} />
+                onOpenCompaction={(detail) => { onOpenTool?.(); setCompactionDetail(detail); }} />
               {timestamped.has(index) && <MessageTime message={message} />}
               {outgoing && (
                 <div className={`chat-optimistic-state is-${outgoing.status}`}>
@@ -631,7 +633,7 @@ export default function AgentConversationView({
                   )}
                 </div>
               )}
-              {plan && <ConversationPlanSummary plan={plan} onOpen={() => setPlanSheet(plan)} />}
+              {plan && <ConversationPlanSummary plan={plan} onOpen={() => { onOpenTool?.(); setPlanSheet(plan); }} />}
             </div>
           );
         })}

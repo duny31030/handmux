@@ -35,4 +35,30 @@ describe('PaneSurfaceHost', () => {
     expect(view.container.querySelectorAll('.agent-conversation-view')).toHaveLength(1);
     expect(view.container.querySelectorAll('.agent-conversation-composer')).toHaveLength(1);
   });
+
+  it('retains focused conversation controls when only the transcript surface changes', () => {
+    const controlsKey = 'conversation-controls\0session-1\0window-1';
+    const view = render(
+      <PaneSurfaceHost
+        ownerKey="%12\0chat-unavailable"
+        controlsKey={controlsKey}
+        primary={<div className="agent-conversation-view">loading</div>}
+        controls={<textarea aria-label="composer" />}
+      />,
+    );
+    const input = view.getByRole('textbox') as HTMLTextAreaElement;
+    input.focus();
+
+    view.rerender(
+      <PaneSurfaceHost
+        ownerKey="%12\0conversation\0pi\0session-1"
+        controlsKey={controlsKey}
+        primary={<div className="agent-conversation-view">loaded</div>}
+        controls={<textarea aria-label="composer" />}
+      />,
+    );
+
+    expect(view.getByRole('textbox')).toBe(input);
+    expect(document.activeElement).toBe(input);
+  });
 });
