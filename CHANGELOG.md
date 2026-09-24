@@ -4,6 +4,10 @@ All notable changes to handmux. Format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Fixed
+
+- 修复 Claude 后台 Shell 长时间运行时普通消息一直排队、任务不结束就无法发送的问题。
+
 ## [0.32.0] - 2026-09-24
 
 ### Added

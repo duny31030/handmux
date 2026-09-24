@@ -28,6 +28,53 @@ export interface ClaudeNativeCompletion {
   transcriptComplete?: boolean;
   latestNativeAt?: number;
   statusEventId?: string;
+  /** A background Bash/Agent task was started and has not emitted its completion notification yet. */
+  backgroundTaskPending?: boolean;
+}
+
+function contentText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (!Array.isArray(value)) return '';
+  return value.map((item) => {
+    const block = record(item);
+    return block?.type === 'text' && typeof block.text === 'string' ? block.text : '';
+  }).join('');
+}
+
+// Claude keeps background task execution in the same interactive process. A Stop Hook can therefore
+// arrive while the native registry remains busy. Count only task IDs proven by Claude's own tool result,
+// and subtract the matching <task-notification>; malformed or incomplete rows stay conservative.
+function backgroundTaskPending(rows: readonly (Row | null)[], sessionId: string): boolean {
+  const backgroundToolIds = new Set<string>();
+  const started = new Set<string>();
+  const completed = new Set<string>();
+  for (const row of rows) {
+    if (!row || row.sessionId !== undefined && row.sessionId !== sessionId) continue;
+    const message = record(row.message);
+    const content = message?.content;
+    if (row.type === 'assistant' && Array.isArray(content)) {
+      for (const block of content) {
+        const item = record(block);
+        const input = record(item?.input);
+        if (item?.type === 'tool_use' && typeof item.id === 'string'
+          && input?.run_in_background === true) backgroundToolIds.add(item.id);
+      }
+    }
+    if (row.type !== 'user') continue;
+    if (Array.isArray(content)) for (const block of content) {
+      const item = record(block);
+      if (item?.type !== 'tool_result' || typeof item.tool_use_id !== 'string'
+        || !backgroundToolIds.has(item.tool_use_id)) continue;
+      const match = /background\s+with\s+ID:\s*([A-Za-z0-9_-]+)/i.exec(contentText(item.content));
+      if (match?.[1]) started.add(match[1]);
+    }
+    if (record(row.origin)?.kind === 'task-notification') {
+      const match = /<task-id>\s*([^<>]+?)\s*<\/task-id>/i.exec(contentText(content));
+      if (match?.[1]) completed.add(match[1].trim());
+    }
+  }
+  for (const id of started) if (!completed.has(id)) return true;
+  return false;
 }
 interface Tail {
   sessionId: string;
@@ -209,6 +256,7 @@ export class ClaudeNativeTailReader {
       lastRecord: tail.rows.at(-1) ?? null,
       transcriptComplete: true,
       latestNativeAt: Math.max(0, ...tail.rows.map((row) => typeof row?.timestamp === 'string' ? Date.parse(row.timestamp) || 0 : 0)),
+      ...(backgroundTaskPending(tail.rows, sessionId) ? { backgroundTaskPending: true } : {}),
       ...this.#restoredPrompt(tail.rows, payload),
     };
   }

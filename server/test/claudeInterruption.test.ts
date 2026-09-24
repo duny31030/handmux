@@ -242,6 +242,31 @@ function registryFixture() {
   return { ...h, payload, process, transcript, registry, user, writeStatus, read };
 }
 
+it('releases a stopped Claude turn while its background Shell task is still pending', () => {
+  const h = registryFixture();
+  fs.writeFileSync(h.transcript, [
+    { type: 'assistant', sessionId: SESSION, isSidechain: false, timestamp: new Date(3000).toISOString(),
+      message: { role: 'assistant', content: [{ type: 'tool_use', id: 'tool-bg', name: 'Bash',
+        input: { command: 'long-running-check', run_in_background: true } }] } },
+    { type: 'user', sessionId: SESSION, isSidechain: false, timestamp: new Date(3001).toISOString(),
+      message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tool-bg',
+        content: 'Command running in background with ID: task-bg' }] } },
+  ].map((row) => JSON.stringify(row)).join('\n') + '\n');
+  h.writeStatus({ status: 'busy', statusUpdatedAt: 5000 });
+  expect(h.reader.read(h.payload, 4000, 10000, h.process, 'stop')).toMatchObject({
+    status: 'busy', backgroundTaskPending: true,
+  });
+  const stateFile = path.join(h.directory, 'hook.json');
+  fs.writeFileSync(stateFile, JSON.stringify({ '%1': {
+    src: 'stop', ts: 4000, sequence: 2, process: h.process, payload: h.payload,
+  } }));
+  const events = createClaudeEvents({ file: stateFile, now: () => 10000 });
+  expect(events.nativeTail.read(h.payload, 4000, 10000, h.process, 'stop')).toMatchObject({
+    status: 'busy', backgroundTaskPending: true,
+  });
+  expect(events.paneKind('%1')).toBe('idle');
+});
+
 it('reads a Linux-style numeric procStart against a numeric start value', () => {
   const h = registryFixture();
   // On Linux both sides are the raw procfs start tick; the lstart string form is macOS-only.

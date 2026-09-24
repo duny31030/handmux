@@ -596,7 +596,12 @@ export function createClaudeEvents({
     } else {
       const native = nativeTail.read(rec.payload, rec.ts, now(), rec.process, rec.src);
       if (native.status === 'unknown') return null;
-      if (native.status === 'busy') return 'working';
+      // A Stop Hook marks Claude's model turn complete even when a background Shell keeps the native
+      // registry busy. That Shell must not pin the phone Queue until its eventual task notification.
+      if (native.status === 'busy') {
+        if (rec.src === 'stop' && native.backgroundTaskPending) return 'idle';
+        return 'working';
+      }
       if (native.status === 'waiting') return 'permission';
       if (native.settled) return 'idle';
     }
