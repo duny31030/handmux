@@ -107,6 +107,31 @@ export function topView(rows: readonly InboxRow[]): InboxView | null {
   return best;
 }
 
+// Project the same filtered Inbox roster onto the terminal's WindowBar. A window can contain several
+// Agent panes, so keep the most urgent view for the whole window: error > needs > done > working. The
+// tmux window id is globally unique for the lifetime of a tmux server, so it is safe to use as the key
+// here even though Inbox rows also carry their session for display and deep-linking.
+export function windowInboxViews(rows: readonly InboxRow[]): Record<string, InboxView> {
+  const result: Record<string, InboxView> = {};
+  for (const row of rows) {
+    if (!row.window) continue;
+    const previous = result[row.window];
+    if (!previous || VIEW_RANK[row.view] > VIEW_RANK[previous]) result[row.window] = row.view;
+  }
+  return result;
+}
+
+// Session-level projection for the drawer. A session is marked pending while it has any live or
+// actionable notification; completed rows are history and should not keep the session marked after
+// the user has seen them.
+export function pendingInboxSessions(rows: readonly InboxRow[]): ReadonlySet<string> {
+  const result = new Set<string>();
+  for (const row of rows) {
+    if (row.session && row.view !== 'done') result.add(row.session);
+  }
+  return result;
+}
+
 // Largest ts across all panes — seeds / advances the read-ts high-water mark (server-clock based).
 export function maxTs(states: Record<string, PaneInboxState>): number {
   let m = 0;

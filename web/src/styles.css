@@ -637,8 +637,22 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .win-tab { display: inline-flex; align-items: center; white-space: nowrap; padding: 4px 10px; min-height: var(--win-row-h); border: none; border-radius: 8px; background: #33353a; color: #bbb; font-size: 13px; touch-action: manipulation; }
 .win-tab.active { background: var(--blue); color: #fff; }
 .win-new { border: 1px dashed #555; color: #8aa; font-weight: 700; background: transparent; }
-.win-panes { margin-left: 5px; font-size: 11px; color: #889; }
-.win-tab.active .win-panes { color: #d6e4ff; }
+.win-panes {
+  min-width: 18px; height: 18px; padding: 0 5px; margin-left: 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 999px; background: rgba(118,118,128,.18); color: #a7aab4;
+  font-size: 11px; line-height: 1; font-variant-numeric: tabular-nums;
+}
+.win-tab.active .win-panes { background: rgba(255,255,255,.2); color: #eef4ff; }
+.window-inbox-label {
+  flex: none; margin-left: 7px; font-size: 10px; line-height: 1;
+  font-weight: 600; letter-spacing: -.01em; white-space: nowrap;
+}
+.window-inbox-label.needs { color: #e0a020; }
+.window-inbox-label.done { color: var(--green); }
+.window-inbox-label.error { color: var(--red); }
+.window-inbox-label.working { color: var(--blue); }
+.win-tab.active .window-inbox-label { filter: brightness(1.12); }
 /* Active window with >1 pane: the tab expands inline into "name │ ① cmd ▾". The trigger reuses the
    .win-tab look; the menu (below) reuses Dropdown's .dd-menu. wt-dd is the positioning anchor. */
 .wt-dd { position: relative; flex: none; display: flex; }
@@ -1100,6 +1114,7 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .session-section.is-current .session-section-toggle,
 .session-section-title[aria-current="page"] ~ .session-section-toggle { color:#34c759; }
 .session-section-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; letter-spacing:-.01em; }
+.session-pending-label { flex:none; margin-left:7px; color:rgba(235,235,245,.52); font-size:11px; font-weight:400; white-space:nowrap; }
 .session-section-body { display:grid; grid-template-rows:0fr; transition:grid-template-rows .24s cubic-bezier(.22,.8,.25,1); }
 .session-section-body.is-open { grid-template-rows:1fr; }
 .session-window-list { min-height:0; overflow:hidden; padding:2px 0 0; background:rgba(255,255,255,.045); opacity:0; transform:translateY(-4px); transition:opacity .18s ease,transform .24s cubic-bezier(.22,.8,.25,1); }

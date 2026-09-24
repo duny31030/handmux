@@ -15,6 +15,8 @@ import { useBackButton } from '../hooks/useBackButton.js';
 import { OverlayPortal } from '../overlays/OverlayHost.js';
 import type { PaneLayoutCell, PaneLayoutSource } from '../paneLayout.js';
 import type { WorkspaceLens } from './LensSwitch.jsx';
+import { VIEW_LABEL } from '../inbox.js';
+import type { InboxView } from '../inbox.js';
 
 export interface WorkspaceWindow {
   id: string;
@@ -32,6 +34,7 @@ type AgentMap = Readonly<Record<string, string | null | undefined>>;
 export interface WindowBarProps {
   windows: readonly WorkspaceWindow[];
   windowAgents?: AgentMap;
+  windowInboxViews?: Readonly<Record<string, InboxView | null | undefined>>;
   paneAgents?: AgentMap;
   currentAgent?: string | null;
   currentWindowId: string;
@@ -62,19 +65,21 @@ interface WindowTabProps {
   window: WorkspaceWindow;
   active: boolean;
   agent?: string | null;
+  inboxView?: InboxView | null;
   onSelect: (window: WorkspaceWindow) => void;
   onManage: (window: WorkspaceWindow) => void;
 }
 
-function WindowTab({ window: win, active, agent, onSelect, onManage }: WindowTabProps) {
+function WindowTab({ window: win, active, agent, inboxView, onSelect, onManage }: WindowTabProps) {
   const lp = useLongPress<HTMLButtonElement>(() => onManage(win), { onClick: () => onSelect(win) });
   return (
     <button data-win={win.id} className={`win-tab ${active ? 'active' : ''}`} {...lp}>
       <span className="win-title">
-        {agent && <AgentMark agent={agent} />}
         <span>{win.name || win.id}</span>
+        {agent && <AgentMark agent={agent} />}
       </span>
-      {win.panes > 1 && <span className="win-panes">{win.panes}</span>}
+      {win.panes > 1 && <span className="win-panes" aria-label={`${win.panes}个窗格`}>{win.panes}</span>}
+      {inboxView && <span className={`window-inbox-label ${inboxView}`}>{VIEW_LABEL[inboxView]}</span>}
     </button>
   );
 }
@@ -145,6 +150,7 @@ interface PaneTabProps {
   paneAgents?: AgentMap;
   currentPaneId: string;
   agent?: string | null;
+  inboxView?: InboxView | null;
   onManage: (window: WorkspaceWindow) => void;
   onManagePane?: (paneId: string) => void;
   onSelectPane: (paneId: string) => void;
@@ -161,6 +167,7 @@ function PaneTab({
   paneAgents = {},
   currentPaneId,
   agent,
+  inboxView,
   onManage,
   onManagePane,
   onSelectPane,
@@ -300,12 +307,13 @@ function PaneTab({
         {...lp}
       >
         <span className="win-title">
-          {agent && <AgentMark agent={agent} />}
           <span className="wt-name">{win.name || win.id}</span>
+          {agent && <AgentMark agent={agent} />}
         </span>
         <span className="wt-sep" aria-hidden="true">│</span>
         <span className="wt-pane">{paneLabel(cur, idx)}</span>
         <span className={`wt-caret${open ? ' open' : ''}`} aria-hidden="true">▾</span>
+        {inboxView && <span className={`window-inbox-label ${inboxView}`}>{VIEW_LABEL[inboxView]}</span>}
       </button>
       {open && pos && (
         layout ? (
@@ -355,7 +363,7 @@ function PaneTab({
 }
 
 export default function WindowBar({
-  windows, windowAgents = {}, paneAgents = {}, currentAgent, currentWindowId, panes, currentPaneId, onSelectWindow, onSelectPane, onNewWindow, onManageWindow,
+  windows, windowAgents = {}, windowInboxViews = {}, paneAgents = {}, currentAgent, currentWindowId, panes, currentPaneId, onSelectWindow, onSelectPane, onNewWindow, onManageWindow,
   onManagePane, onBeforePaneMapOpen, paneSheetOpen = false, openMapFor = null, onMapOpened, onPaneMapOpenChange, trackWindowId,
   lens = 'terminal', onLensChange = () => {}, chatLensEnabled = false,
 }: WindowBarProps) {
@@ -395,6 +403,7 @@ export default function WindowBar({
                 panes={panes}
                 paneAgents={paneAgents}
                 currentPaneId={currentPaneId}
+                inboxView={windowInboxViews[w.id] ?? null}
                 agent={Object.hasOwn(windowAgents, w.id)
                   ? windowAgents[w.id] ?? null
                   : currentAgent ?? null}
@@ -415,6 +424,7 @@ export default function WindowBar({
               window={w}
               active={active}
               agent={windowAgents[w.id] ?? null}
+              inboxView={windowInboxViews[w.id] ?? null}
               onSelect={onSelectWindow}
               onManage={onManageWindow}
             />

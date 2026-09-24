@@ -15,6 +15,7 @@ import ActionSheet from './ActionSheet.jsx';
 import { ArrowUpIcon, ChevronDownIcon, ChevronRightIcon, CommandIcon, GearIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, XIcon } from './icons.jsx';
 
 const EXPANDED_SESSIONS_KEY = 'handmux.drawer.expanded-sessions';
+const EMPTY_PENDING_SESSIONS: ReadonlySet<string> = new Set();
 
 function hasHorizontalScrollAhead(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
@@ -111,6 +112,7 @@ interface DrawerProps {
   windowOrderVersion?: number;
   revealRevision?: number;
   rootView?: 'session' | 'project';
+  pendingSessions?: ReadonlySet<string>;
 }
 
 /**
@@ -131,7 +133,7 @@ export default function Drawer({
   orphans = [], onTakeoverRequest,
   recoveryPlan = null, recoveryOperation = null, onOpenRecovery = () => {},
   projectTaskBeta = false, onSwitchProject = () => {}, onSwitchSession = () => {}, onOpenSettings = () => {}, onNewWindow = () => {}, onManageWindow = () => {}, onRenameSession = () => {}, onDeleteSession = () => {}, onMoveSession = () => {}, windowOrderVersion = 0, rootView = 'session',
-  revealRevision = 0,
+  revealRevision = 0, pendingSessions = EMPTY_PENDING_SESSIONS,
 }: DrawerProps) {
   const [orphOpen, setOrphOpen] = useState(false);
   const [sessionWindows, setSessionWindows] = useState<Record<string, TmuxWindow[]>>({});
@@ -516,8 +518,8 @@ export default function Drawer({
           {bound.map((name) => (
             <section key={name} className={`session-section${name === currentSessionName ? ' is-current' : ''}`}>
               <div className="session-section-header" role="treeitem" aria-expanded={expandedSessions.has(name)} onClick={() => toggleSession(name)}>
-                <button type="button" aria-expanded={expandedSessions.has(name)} aria-current={name === currentSessionName ? 'page' : undefined} className="session-section-title">
-                  <span className="session-section-icon"><CommandIcon /></span><span className="session-section-label">{name}</span>
+                  <button type="button" aria-expanded={expandedSessions.has(name)} aria-current={name === currentSessionName ? 'page' : undefined} className="session-section-title">
+                  <span className="session-section-icon"><CommandIcon /></span><span className="session-section-label">{name}</span>{pendingSessions.has(name) && <span className="session-pending-label">{t('inbox.pending')}</span>}
                 </button>
                 <button
                   type="button"

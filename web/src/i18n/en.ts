@@ -1297,6 +1297,7 @@ export default {
   'inbox.view.done': 'Completed',
   'inbox.view.needs': 'Needs you',
   'inbox.view.error': 'Error',
+  'inbox.pending': 'Pending',
   'push.unsupported': 'Push notifications require Chrome or Safari',
   'push.iosAddToHome': 'On iOS, first "Add to Home Screen", then open from the home-screen icon to enable',
   'a2hs.title': 'Add handmux to your Home Screen',

@@ -75,6 +75,15 @@ describe('Drawer (bound sessions)', () => {
     expect(main.className).not.toContain('is-current');
   });
 
+  it('shows a quiet pending label beside sessions with inbox work', async () => {
+    await render({ pendingSessions: new Set(['server']) });
+    await waitForSessions();
+    const server = [...container.querySelectorAll('.session-section')].find((r) => r.textContent.includes('server'));
+    const main = [...container.querySelectorAll('.session-section')].find((r) => r.textContent.includes('main'));
+    expect(server.querySelector('.session-pending-label')?.textContent).toBe('待处理');
+    expect(main.querySelector('.session-pending-label')).toBeNull();
+  });
+
   it('clicking a name toggles its Window list', async () => {
     await render();
     await waitForSessions();

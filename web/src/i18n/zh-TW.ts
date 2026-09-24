@@ -597,6 +597,7 @@ export default {
   'inbox.view.done': '已完成',
   'inbox.view.needs': '需要你',
   'inbox.view.error': '出錯',
+  'inbox.pending': '待處理',
   'push.unsupported': '推播通知需要 Chrome 或 Safari 瀏覽器',
   'push.iosAddToHome': 'iOS 需先將本站「加入主畫面」，從主畫面圖示開啟後再開啟',
   'a2hs.title': '將 handmux 加入主畫面',

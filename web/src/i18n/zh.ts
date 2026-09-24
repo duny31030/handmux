@@ -1294,6 +1294,7 @@ export default {
   'inbox.view.done': '已完成',
   'inbox.view.needs': '需要你',
   'inbox.view.error': '出错',
+  'inbox.pending': '待处理',
   'push.unsupported': '推送通知需要 Chrome 或 Safari 浏览器',
   'push.iosAddToHome': 'iOS 需先把本站"添加到主屏幕"，从主屏图标打开后再开启',
   'a2hs.title': '把 handmux 添加到主屏',

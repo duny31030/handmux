@@ -585,6 +585,7 @@ export default {
   'inbox.view.done': '完了',
   'inbox.view.needs': '要対応',
   'inbox.view.error': 'エラー',
+  'inbox.pending': '未処理',
   'push.unsupported': 'プッシュ通知には Chrome または Safari が必要です',
   'push.iosAddToHome': 'iOS では先にこのサイトを「ホーム画面に追加」し、ホーム画面のアイコンから開いてください',
   'a2hs.title': 'handmux をホーム画面に追加',
