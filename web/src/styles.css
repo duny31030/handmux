@@ -1105,10 +1105,15 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .session-section-body.is-open { grid-template-rows:1fr; }
 .session-window-list { min-height:0; overflow:hidden; padding:2px 0 0; background:rgba(255,255,255,.045); opacity:0; transform:translateY(-4px); transition:opacity .18s ease,transform .24s cubic-bezier(.22,.8,.25,1); }
 .session-section-body.is-open .session-window-list { opacity:1; transform:none; }
-.session-window-row { width:100%; min-height:38px; margin:0; padding:3px 12px 3px 2em; display:flex; align-items:center; gap:10px; border:0; border-radius:0; background:transparent; color:rgba(235,235,245,.80); text-align:left; font:14px/21px -apple-system,BlinkMacSystemFont,sans-serif; font-weight:450; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+.session-window-row { position:relative; width:100%; min-height:38px; margin:0; padding:3px 12px 3px 2em; display:flex; align-items:center; gap:10px; border:0; border-radius:0; background:transparent; color:rgba(235,235,245,.80); text-align:left; font:14px/21px -apple-system,BlinkMacSystemFont,sans-serif; font-weight:450; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
 .session-window-row.is-current,
 .session-window-row[aria-current="page"] { background:rgba(88,126,172,.48); box-shadow:none; border:0; border-radius:0; color:#fff; font-weight:500; }
 .session-window-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.session-window-inbox-dot { position:absolute; left:12px; top:50%; width:6px; height:6px; margin-top:-3px; border-radius:50%; background:rgba(235,235,245,.42); pointer-events:none; }
+.session-window-inbox-dot.needs { background:#e0a020; }
+.session-window-inbox-dot.done { background:var(--green); }
+.session-window-inbox-dot.error { background:var(--red); }
+.session-window-inbox-dot.working { background:var(--blue); animation:tw-blink 1s ease-in-out infinite; }
 .session-window-count {
   flex:none; min-width:20px; height:20px; padding:0 5px; margin-left:auto; display:inline-flex;
   align-items:center; justify-content:center; border-radius:999px; background:rgba(118,118,128,.18);
@@ -1140,7 +1145,7 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 @keyframes session-skeleton-shimmer { 0% { background-position:120% 0; } 100% { background-position:-80% 0; } }
 .workspace-load-error { padding:8px 14px; color:rgba(235,235,245,.62); font-size:13px; overflow-wrap:anywhere; }
 .workspace-load-error button { min-height:44px; padding:0 4px; border:0; background:transparent; color:var(--blue); }
-@media (prefers-reduced-motion: reduce) { .session-section-body,.session-window-list,.session-section-toggle,.session-section-skeleton-row i,.session-window-skeleton-row i { transition:none; animation:none; } }
+@media (prefers-reduced-motion: reduce) { .session-section-body,.session-window-list,.session-section-toggle,.session-section-skeleton-row i,.session-window-skeleton-row i,.session-window-inbox-dot.working { transition:none; animation:none; } }
 
 /* Project Task beta — a task-first peer to the existing session root. The surfaces deliberately reuse
    the app's dark iOS palette, 44pt controls, segmented controls and full-screen secondary pages. */

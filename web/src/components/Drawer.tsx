@@ -576,9 +576,13 @@ export default function Drawer({
                         }
                       }}
                     >
+                      {windowInboxViews[window.id] && <span
+                        className={`session-window-inbox-dot ${windowInboxViews[window.id]}`}
+                        role="img"
+                        aria-label={VIEW_LABEL[windowInboxViews[window.id] as InboxView]}
+                      />}
                       <span className="session-window-label">{window.name || window.id}</span>
                       {windowAgents[window.id] && <AgentMark agent={windowAgents[window.id]} />}
-                      {windowInboxViews[window.id] && <span className={`inbox-chip ${windowInboxViews[window.id]}`} aria-label={VIEW_LABEL[windowInboxViews[window.id] as InboxView]}>{VIEW_LABEL[windowInboxViews[window.id] as InboxView]}</span>}
                       <span className="session-window-count" aria-label={`${window.panes} panes`}>{window.panes}</span>
                       <button type="button" className="session-window-menu" aria-label={`${window.name || window.id} ${t('common.more')}`} onClick={(event) => { event.stopPropagation(); onManageWindow(name, window); }}><MoreHorizontalIcon /></button>
                     </div>

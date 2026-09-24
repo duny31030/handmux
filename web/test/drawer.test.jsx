@@ -85,19 +85,26 @@ describe('Drawer (bound sessions)', () => {
     expect(main.querySelector('.session-pending-label')).toBeNull();
   });
 
-  it('shows the Agent mark, pane count badge, and Inbox text label on Window rows', async () => {
+  it('shows the Agent mark, pane count badge, and inset Inbox dot on Window rows', async () => {
     getWindowsForSessions.mockResolvedValueOnce({
       '$1': [{ id: '@1', name: 'main', panes: 2 }, { id: '@2', name: 'shell', panes: 1 }],
       '$2': [],
     });
-    await render({ windowAgents: { '@1': 'codex' }, windowInboxViews: { '@1': 'needs' } });
+    await render({
+      windowAgents: { '@1': 'codex' },
+      windowInboxViews: { '@1': 'needs', '@2': 'working' },
+    });
     await waitForSessions();
     const row = container.querySelector('[data-window-id="@1"]');
     expect(row.querySelector('.agent-mark')?.getAttribute('aria-label')).toBe('codex');
     expect(row.querySelector('.session-window-count')?.textContent).toBe('2');
-    expect(row.querySelector('.inbox-chip')?.textContent).toBe('需要你');
+    const dot = row.querySelector('.session-window-inbox-dot.needs');
+    expect(dot?.getAttribute('aria-label')).toBe('需要你');
+    expect(row.querySelector('.inbox-chip')).toBeNull();
+    expect(dot?.nextElementSibling).toBe(row.querySelector('.session-window-label'));
     const singlePane = container.querySelector('[data-window-id="@2"]');
     expect(singlePane.querySelector('.session-window-count')?.textContent).toBe('1');
+    expect(singlePane.querySelector('.session-window-inbox-dot.working')?.getAttribute('aria-label')).toBe('进行中');
   });
 
   it('clicking a name toggles its Window list', async () => {
