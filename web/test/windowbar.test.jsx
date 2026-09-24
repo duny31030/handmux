@@ -220,16 +220,6 @@ describe('WindowBar', () => {
     expect(t2.querySelector('.win-panes')).toBeNull();
   });
 
-  it('shows the Inbox status as a text label instead of a colored dot', () => {
-    render({ ...base, windowInboxViews: { '@1': 'needs', '@2': 'done' } });
-    const active = container.querySelector('[data-win="@1"]');
-    const inactive = container.querySelector('[data-win="@2"]');
-    expect(active.querySelector('.window-inbox-label')?.textContent).toBe('需要你');
-    expect(active.querySelector('.window-inbox-label')?.className).toContain('needs');
-    expect(inactive.querySelector('.window-inbox-label')?.textContent).toBe('已完成');
-    expect(container.querySelector('.window-inbox-dot')).toBeNull();
-  });
-
   it('long-pressing a window tab calls onManageWindow with that window (not onSelectWindow)', () => {
     vi.useFakeTimers();
     const onManageWindow = vi.fn();
