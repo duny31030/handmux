@@ -32,6 +32,47 @@ import type { AsrMode } from '../voice/usePushToTalk.js';
 
 const COMPOSER_ERROR_DISMISS_MS = 4_000;
 
+// Keep the keyboard-down viewport baseline outside the Composer instance. The controls fragment can be
+// replaced during workspace reconciliation; on Android that replacement may happen while the keyboard
+// is already open and `window.innerHeight` has shrunk with it. Reinitialising the baseline in the new
+// instance would then make an open keyboard look closed, so the hydration focus repair would never run.
+const keyboardViewportBaseline = {
+  width: typeof window !== 'undefined' ? (window.visualViewport?.width ?? window.innerWidth) : 0,
+  fullHeight: typeof window !== 'undefined'
+    ? Math.max(window.innerHeight, window.visualViewport?.height ?? 0) : 0,
+  viewport: null as VisualViewport | null,
+};
+
+function syncKeyboardViewportBaseline(): void {
+  if (typeof window === 'undefined') return;
+  const viewport = window.visualViewport;
+  if (!viewport) return;
+  const addEventListener = (viewport as VisualViewport & {
+    addEventListener?: EventTarget['addEventListener'];
+  }).addEventListener;
+  if (typeof addEventListener !== 'function') return;
+  if (keyboardViewportBaseline.viewport !== viewport) {
+    const removeEventListener = (keyboardViewportBaseline.viewport as (VisualViewport & {
+      removeEventListener?: EventTarget['removeEventListener'];
+    }) | null)?.removeEventListener;
+    if (typeof removeEventListener === 'function') {
+      removeEventListener.call(keyboardViewportBaseline.viewport, 'resize', syncKeyboardViewportBaseline);
+    }
+    keyboardViewportBaseline.viewport = viewport;
+    addEventListener.call(viewport, 'resize', syncKeyboardViewportBaseline);
+  }
+  if (Math.abs(viewport.width - keyboardViewportBaseline.width) > 40) {
+    keyboardViewportBaseline.width = viewport.width;
+    keyboardViewportBaseline.fullHeight = Math.max(window.innerHeight, viewport.height);
+    return;
+  }
+  // Only grow the baseline. A keyboard-open viewport must never overwrite the last known keyboard-down
+  // height, even when the browser shrinks both innerHeight and visualViewport.height together.
+  keyboardViewportBaseline.fullHeight = Math.max(
+    keyboardViewportBaseline.fullHeight, window.innerHeight, viewport.height,
+  );
+}
+
 function autoGrow(element: HTMLTextAreaElement | null): void {
   if (!element) return;
   element.style.height = 'auto';
@@ -92,26 +133,16 @@ export default function AgentConversationComposer({
   const uploadRef = useRef<HTMLInputElement>(null);
   const tapRef = useRef({ x: 0, y: 0, moved: false, finishVoice: false });
   const composerFocusIntentRef = useRef(false);
+  const explicitBlurRef = useRef(false);
   // iOS can dismiss the soft keyboard without blurring the textarea. Focus alone therefore cannot decide
   // whether a control tap should preserve the composer: keeping that stale focus through a sheet close can
-  // reopen the keyboard. Track the last keyboard-down viewport height and preserve focus only while the
-  // keyboard is physically visible (desktop keeps its established keyboard-focus behavior).
-  const initialViewport = window.visualViewport;
-  const keyboardViewportRef = useRef({
-    width: initialViewport?.width ?? window.innerWidth,
-    fullHeight: Math.max(window.innerHeight, initialViewport?.height ?? 0),
-  });
+  // reopen the keyboard. Track the last keyboard-down viewport height and use it only to decide whether a
+  // repair is safe (desktop keeps its established keyboard-focus behavior).
   const physicalKeyboardUp = (): boolean | null => {
+    syncKeyboardViewportBaseline();
     const viewport = window.visualViewport;
     if (!viewport) return null;
-    const baseline = keyboardViewportRef.current;
-    if (Math.abs(viewport.width - baseline.width) > 40) {
-      baseline.width = viewport.width;
-      baseline.fullHeight = Math.max(window.innerHeight, viewport.height);
-    } else {
-      baseline.fullHeight = Math.max(baseline.fullHeight, window.innerHeight, viewport.height);
-    }
-    return softKeyboardUp(baseline.fullHeight);
+    return softKeyboardUp(keyboardViewportBaseline.fullHeight);
   };
   const keepComposerFocus = (event: ReactPointerEvent<HTMLElement>): void => {
     if (event.target instanceof Element
@@ -121,7 +152,13 @@ export default function AgentConversationComposer({
       if (event.cancelable) event.preventDefault();
       return;
     }
-    if (document.activeElement === ref.current) ref.current?.blur();
+    if (document.activeElement === ref.current) {
+      // This is the one blur we deliberately requested after discovering that the OS keyboard is already
+      // down. Mark it before calling blur so the natural blur handler does not retain a stale focus intent.
+      explicitBlurRef.current = true;
+      composerFocusIntentRef.current = false;
+      ref.current?.blur();
+    }
   };
   const rememberComposerFocus = (): void => {
     composerFocusIntentRef.current = true;
@@ -132,10 +169,13 @@ export default function AgentConversationComposer({
       composerFocusIntentRef.current = false;
       return;
     }
-    // iOS may dismiss the keyboard without blurring the textarea. Keep the intent only while the
-    // physical keyboard is still up so a hydration repaint can restore an accidental focus loss,
-    // while an intentional keyboard dismissal remains respected.
-    if (physicalKeyboardUp() === false) composerFocusIntentRef.current = false;
+    // iOS may dismiss the keyboard without blurring the textarea. A hydration repaint can also blur the
+    // field before visualViewport publishes the keyboard state, so do not clear the intent from a bare
+    // blur. The explicit pointer path above is the intentional-dismissal signal.
+    if (explicitBlurRef.current) {
+      explicitBlurRef.current = false;
+      composerFocusIntentRef.current = false;
+    }
   };
   const draftLocked = conversation.sending || submitting;
   const draftLockedRef = useRef(draftLocked);
@@ -294,12 +334,20 @@ export default function AgentConversationComposer({
   // reopen a keyboard the user already dismissed.
   useLayoutEffect(() => {
     if (!composerFocusIntentRef.current || !ref.current || document.activeElement === ref.current
-      || physicalKeyboardUp() !== true) return undefined;
-    const frame = requestAnimationFrame(() => {
+    ) return undefined;
+    const restore = (): void => {
       if (composerFocusIntentRef.current && physicalKeyboardUp() === true
         && document.activeElement !== ref.current) ref.current?.focus({ preventScroll: true });
-    });
-    return () => cancelAnimationFrame(frame);
+    };
+    // A mobile browser can report the focus loss before it publishes the final visualViewport height.
+    // Retry after the next frame and after the keyboard animation settles; this repairs that ordering
+    // race without reopening a keyboard the user explicitly dismissed (that path clears the intent).
+    const frame = requestAnimationFrame(restore);
+    const settle = window.setTimeout(restore, 180);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(settle);
+    };
   }, [conversation.items, conversation.status, key]);
   const cardPointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
     if (!isConversationComposerCardPointerTarget(event.currentTarget, event.target)) return;

@@ -122,4 +122,21 @@ describe('AgentConversationComposer mobile focus ownership', () => {
       conversation={{ ...model, items: [{ key: 'loaded', type: 'text', role: 'assistant', content: 'loaded' }] } as AgentConversationController} />);
     await waitFor(() => expect(document.activeElement).toBe(input));
   });
+
+  it('keeps the focus intent when hydration blurs before the viewport reports the keyboard', async () => {
+    const viewport = installVisualViewport();
+    const model = conversation();
+    const view = render(<AgentConversationComposer agentId="pi"
+      sessionId="hydrating-viewport-race" busy={false} conversation={model} />);
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement;
+    input.focus();
+    // The browser can deliver the transient blur before visualViewport.resize. At this instant the
+    // keyboard is already animating, but its old full-height measurement still looks like "down".
+    input.blur();
+    viewport.height = 430;
+    view.rerender(<AgentConversationComposer agentId="pi"
+      sessionId="hydrating-viewport-race" busy={false}
+      conversation={{ ...model, status: 'ready', items: [{ key: 'loaded', type: 'text', role: 'assistant', content: 'loaded' }] } as unknown as AgentConversationController} />);
+    await waitFor(() => expect(document.activeElement).toBe(input));
+  });
 });
