@@ -9,6 +9,7 @@ vi.mock('../src/api.js', () => ({
 }));
 
 import Drawer from '../src/components/Drawer.jsx';
+import { getWindowsForSessions } from '../src/api.js';
 
 let container;
 let root;
@@ -82,6 +83,19 @@ describe('Drawer (bound sessions)', () => {
     const main = [...container.querySelectorAll('.session-section')].find((r) => r.textContent.includes('main'));
     expect(server.querySelector('.session-pending-label')?.textContent).toBe('待处理');
     expect(main.querySelector('.session-pending-label')).toBeNull();
+  });
+
+  it('shows the Agent mark, pane count badge, and Inbox text label on Window rows', async () => {
+    getWindowsForSessions.mockResolvedValueOnce({
+      '$1': [{ id: '@1', name: 'main', panes: 2 }],
+      '$2': [],
+    });
+    await render({ windowAgents: { '@1': 'codex' }, windowInboxViews: { '@1': 'needs' } });
+    await waitForSessions();
+    const row = container.querySelector('[data-window-id="@1"]');
+    expect(row.querySelector('.agent-mark')?.getAttribute('aria-label')).toBe('codex');
+    expect(row.querySelector('.session-window-count')?.textContent).toBe('2');
+    expect(row.querySelector('.session-window-inbox-label')?.textContent).toBe('需要你');
   });
 
   it('clicking a name toggles its Window list', async () => {

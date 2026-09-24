@@ -107,6 +107,18 @@ export function topView(rows: readonly InboxRow[]): InboxView | null {
   return best;
 }
 
+// Project the filtered Inbox roster onto the drawer's Window rows. A window can contain several Agent
+// panes, so the drawer shows the most urgent label for the whole window.
+export function windowInboxViews(rows: readonly InboxRow[]): Record<string, InboxView> {
+  const result: Record<string, InboxView> = {};
+  for (const row of rows) {
+    if (!row.window) continue;
+    const previous = result[row.window];
+    if (!previous || VIEW_RANK[row.view] > VIEW_RANK[previous]) result[row.window] = row.view;
+  }
+  return result;
+}
+
 // Session-level projection for the drawer. A session is marked pending while it has any live or
 // actionable notification; completed rows are history and should not keep the session marked after
 // the user has seen them.

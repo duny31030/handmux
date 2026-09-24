@@ -5,17 +5,20 @@
 // one into tmux (the takeover sheet, handled in App); see server/src/orphans.js.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
-import { relTime } from '../inbox.js';
+import { relTime, VIEW_LABEL } from '../inbox.js';
+import type { InboxView } from '../inbox.js';
 import WorkspaceRecoveryCard from './WorkspaceRecoveryCard.jsx';
 import { getSessions, getWindowsForSessions } from '../api.js';
 import type { TmuxSession, TmuxWindow } from '../api.js';
 import type { MouseEvent } from 'react';
 import type { WorkspaceRecoveryPlan, WorkspaceRestoreOperation } from '../workspaceRecovery.js';
 import ActionSheet from './ActionSheet.jsx';
-import { ArrowUpIcon, ChevronDownIcon, ChevronRightIcon, CommandIcon, GearIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, XIcon } from './icons.jsx';
+import { AgentMark, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon, CommandIcon, GearIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, XIcon } from './icons.jsx';
 
 const EXPANDED_SESSIONS_KEY = 'handmux.drawer.expanded-sessions';
 const EMPTY_PENDING_SESSIONS: ReadonlySet<string> = new Set();
+const EMPTY_WINDOW_AGENTS: Readonly<Record<string, string | null | undefined>> = {};
+const EMPTY_WINDOW_INBOX: Readonly<Record<string, InboxView | null | undefined>> = {};
 
 function hasHorizontalScrollAhead(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
@@ -113,6 +116,8 @@ interface DrawerProps {
   revealRevision?: number;
   rootView?: 'session' | 'project';
   pendingSessions?: ReadonlySet<string>;
+  windowAgents?: Readonly<Record<string, string | null | undefined>>;
+  windowInboxViews?: Readonly<Record<string, InboxView | null | undefined>>;
 }
 
 /**
@@ -133,7 +138,8 @@ export default function Drawer({
   orphans = [], onTakeoverRequest,
   recoveryPlan = null, recoveryOperation = null, onOpenRecovery = () => {},
   projectTaskBeta = false, onSwitchProject = () => {}, onSwitchSession = () => {}, onOpenSettings = () => {}, onNewWindow = () => {}, onManageWindow = () => {}, onRenameSession = () => {}, onDeleteSession = () => {}, onMoveSession = () => {}, windowOrderVersion = 0, rootView = 'session',
-  revealRevision = 0, pendingSessions = EMPTY_PENDING_SESSIONS,
+  revealRevision = 0, pendingSessions = EMPTY_PENDING_SESSIONS, windowAgents = EMPTY_WINDOW_AGENTS,
+  windowInboxViews = EMPTY_WINDOW_INBOX,
 }: DrawerProps) {
   const [orphOpen, setOrphOpen] = useState(false);
   const [sessionWindows, setSessionWindows] = useState<Record<string, TmuxWindow[]>>({});
@@ -568,7 +574,13 @@ export default function Drawer({
                           onSelectSession({ session: { id: sessionId, name }, windows, window });
                         }
                       }}
-                    ><span className="session-window-label">{window.name || window.id}</span><span className="session-window-count" aria-label={`${window.panes} panes`}>{window.panes}个窗格</span><button type="button" className="session-window-menu" aria-label={`${window.name || window.id} ${t('common.more')}`} onClick={(event) => { event.stopPropagation(); onManageWindow(name, window); }}><MoreHorizontalIcon /></button></div>
+                    >
+                      <span className="session-window-label">{window.name || window.id}</span>
+                      {windowAgents[window.id] && <AgentMark agent={windowAgents[window.id]} />}
+                      {window.panes > 1 && <span className="session-window-count" aria-label={`${window.panes} panes`}>{window.panes}</span>}
+                      {windowInboxViews[window.id] && <span className={`session-window-inbox-label ${windowInboxViews[window.id]}`}>{VIEW_LABEL[windowInboxViews[window.id] as InboxView]}</span>}
+                      <button type="button" className="session-window-menu" aria-label={`${window.name || window.id} ${t('common.more')}`} onClick={(event) => { event.stopPropagation(); onManageWindow(name, window); }}><MoreHorizontalIcon /></button>
+                    </div>
                   ))}
                 </div>
               </div>

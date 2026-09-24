@@ -29,7 +29,7 @@ import {
 } from './api.js';
 import { runSplitPane, runClosePane } from './paneActions.js';
 import BrowserSheet from './components/BrowserSheet.jsx';
-import { applyTerminalReads, inboxRows, topView, pendingInboxSessions, maxTs, visibleCurrentPaneState } from './inbox.js';
+import { applyTerminalReads, inboxRows, topView, windowInboxViews, pendingInboxSessions, maxTs, visibleCurrentPaneState } from './inbox.js';
 import type { PaneInboxState } from './inbox.js';
 import { moveTarget } from './windowOrder.js';
 import { reportBound, clearPaneNotification, getNotifications, deleteNotification } from './push.js';
@@ -2753,6 +2753,7 @@ export default function App() {
 
   const inboxList = inboxRows(states, seen, readTs == null ? Infinity : readTs);
   const inboxTop = topView(inboxList);
+  const windowInbox = windowInboxViews(inboxList);
   const pendingInbox = pendingInboxSessions(inboxList);
   const inboxReconnecting = inboxReconnectNeeded(agentDiscovery);
   // windowId → agent id, for the per-window agent logo on a collapsed WindowTab (a single-pane window, or an
@@ -2960,6 +2961,8 @@ export default function App() {
         windowOrderVersion={drawerWindowOrderVersion}
         rootView={drawerView}
         pendingSessions={pendingInbox}
+        windowAgents={windowAgents}
+        windowInboxViews={windowInbox}
       />
       {logoutConfirm && <DeviceLogoutDialog busy={logoutBusy} error={logoutError}
         onClose={() => { setLogoutConfirm(false); setLogoutError(''); }}

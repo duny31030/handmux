@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyTerminalReads, inboxRows, topView, pendingInboxSessions, maxTs, relTime, VIEW_LABEL, viewCounts, visibleCurrentPaneState } from '../src/inbox.js';
+import { applyTerminalReads, inboxRows, topView, windowInboxViews, pendingInboxSessions, maxTs, relTime, VIEW_LABEL, viewCounts, visibleCurrentPaneState } from '../src/inbox.js';
 
 const states = {
   '%1': { session: 'a', window: '@1', windowName: 'edit', kind: 'permission', msg: '', ts: 100 },
@@ -124,6 +124,21 @@ describe('pendingInboxSessions (drawer session labels)', () => {
   });
   it('does not mark a session that only has completed history', () => {
     expect(pendingInboxSessions([row('done-only', 'done')])).toEqual(new Set());
+  });
+});
+
+describe('windowInboxViews (drawer window labels)', () => {
+  const row = (window, view, pane = `%${window.slice(1)}`) => ({
+    pane, session: 's', window, windowName: window, view, msg: '', ts: 1,
+  });
+  it('keeps the highest-priority notification for each window', () => {
+    expect(windowInboxViews([
+      row('@1', 'working'), row('@1', 'done'), row('@1', 'needs'),
+      row('@2', 'done'), row('@2', 'error'), row('@3', 'working'),
+    ])).toEqual({ '@1': 'needs', '@2': 'error', '@3': 'working' });
+  });
+  it('ignores rows without a window location', () => {
+    expect(windowInboxViews([{ ...row('@1', 'done'), window: '' }])).toEqual({});
   });
 });
 
