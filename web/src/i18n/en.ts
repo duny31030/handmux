@@ -340,6 +340,7 @@ export default {
   'drawer.sessionWindowTitle': 'Sessions & windows',
   'drawer.empty': 'No sessions bound yet',
   'drawer.panesEmpty': 'No panes available',
+  'drawer.paneSwitcher': 'Switch pane',
   'drawer.unbind': 'Unbind',
   'drawer.bind': 'Bind session',
   'drawer.logout': 'Log out',

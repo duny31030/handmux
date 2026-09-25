@@ -150,6 +150,7 @@ export default {
   'drawer.sessionWindowTitle': 'セッションとウィンドウ',
   'drawer.empty': 'セッションが紐付けられていません',
   'drawer.panesEmpty': '利用できるペインがありません',
+  'drawer.paneSwitcher': 'ペインを切り替え',
   'drawer.unbind': '紐付け解除',
   'drawer.bind': 'セッションを紐付け',
   'drawer.logout': 'ログアウト',

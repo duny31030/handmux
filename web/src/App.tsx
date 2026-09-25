@@ -2946,6 +2946,7 @@ export default function App() {
         currentSessionName={current?.session?.name ?? null}
         currentWindowId={current?.window?.id ?? null}
         currentPaneId={current?.paneId ?? null}
+        {...(current ? { currentPanes: current.panes } : {})}
         bound={bound}
         revealRevision={drawerRevealRevision}
         onSelectSession={(selection) => {

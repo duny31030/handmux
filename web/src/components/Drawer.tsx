@@ -14,12 +14,16 @@ import type { TmuxPane, TmuxSession, TmuxWindow } from '../api.js';
 import type { MouseEvent } from 'react';
 import type { WorkspaceRecoveryPlan, WorkspaceRestoreOperation } from '../workspaceRecovery.js';
 import ActionSheet from './ActionSheet.jsx';
+import { OverlayPortal } from '../overlays/OverlayHost.js';
 import { AgentMark, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon, CommandIcon, GearIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, XIcon } from './icons.jsx';
 
 const EXPANDED_SESSIONS_KEY = 'handmux.drawer.expanded-sessions';
 const EMPTY_WINDOW_AGENTS: Readonly<Record<string, string | null | undefined>> = {};
 const EMPTY_SESSION_INBOX: Readonly<Record<string, InboxView | null | undefined>> = {};
 const EMPTY_WINDOW_INBOX: Readonly<Record<string, InboxTarget | null | undefined>> = {};
+const EMPTY_PANES: readonly TmuxPane[] = [];
+const CIRCLED_PANES = '①②③④⑤⑥⑦⑧⑨';
+const paneSeq = (index: number): string => CIRCLED_PANES[index] ?? String(index + 1);
 
 function hasHorizontalScrollAhead(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
@@ -95,6 +99,7 @@ interface DrawerProps {
   currentSessionName?: string | null;
   currentWindowId?: string | null;
   currentPaneId?: string | null;
+  currentPanes?: readonly TmuxPane[];
   bound: string[];
   onSelectSession: (selection: DrawerSelection) => void;
   onUnbind: (name: string) => void;
@@ -137,7 +142,7 @@ export interface DrawerSelection {
 }
 
 export default function Drawer({
-  open, onOpen = () => {}, currentSessionName, currentWindowId = null, currentPaneId = null, bound, onSelectSession, onUnbind, onBind, onClose,
+  open, onOpen = () => {}, currentSessionName, currentWindowId = null, currentPaneId = null, currentPanes = EMPTY_PANES, bound, onSelectSession, onUnbind, onBind, onClose,
   orphans = [], onTakeoverRequest,
   recoveryPlan = null, recoveryOperation = null, onOpenRecovery = () => {},
   projectTaskBeta = false, onSwitchProject = () => {}, onSwitchSession = () => {}, onOpenSettings = () => {}, onNewWindow = () => {}, onManageWindow = () => {}, onRenameSession = () => {}, onDeleteSession = () => {}, onMoveSession = () => {}, windowOrderVersion = 0, rootView = 'session',
@@ -150,6 +155,9 @@ export default function Drawer({
   const [openPaneWindow, setOpenPaneWindow] = useState<string | null>(null);
   const [paneLoadingWindow, setPaneLoadingWindow] = useState<string | null>(null);
   const [paneErrorWindow, setPaneErrorWindow] = useState<string | null>(null);
+  const paneTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const paneMenuRef = useRef<HTMLDivElement | null>(null);
+  const [paneMenuPosition, setPaneMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [sessionsReady, setSessionsReady] = useState(false);
   const [topologyError, setTopologyError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
@@ -411,6 +419,11 @@ export default function Drawer({
     return () => window.clearTimeout(timer);
   }, [pendingWindow]);
 
+  useEffect(() => {
+    if (!currentWindowId || !currentPanes?.length) return;
+    setWindowPanes((current) => ({ ...current, [currentWindowId]: [...currentPanes] }));
+  }, [currentWindowId, currentPanes]);
+
   // The active workspace is authoritative even while the Drawer is closed. If navigation comes
   // from a WindowBar or Inbox row, make the target session expandable for the next open. It runs
   // when the active Session/Window changes, so a user can still collapse the current session by hand.
@@ -512,11 +525,77 @@ export default function Drawer({
     setOpenPaneWindow(window.id);
     loadWindowPanes(window);
   };
+  useLayoutEffect(() => {
+    if (!openPaneWindow) {
+      setPaneMenuPosition(null);
+      return undefined;
+    }
+    const place = (): void => {
+      const trigger = paneTriggerRefs.current[openPaneWindow];
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const menu = paneMenuRef.current;
+      const width = menu?.offsetWidth || 220;
+      const paneCount = windowPanes[openPaneWindow]?.length || 0;
+      const height = menu?.offsetHeight || Math.min(360, 48 + paneCount * 44);
+      const margin = 8;
+      const left = Math.max(margin, Math.min(rect.left, window.innerWidth - width - margin));
+      let top = rect.bottom + 6;
+      if (top + height + margin > window.innerHeight) {
+        top = Math.max(margin, rect.top - height - 6);
+      }
+      setPaneMenuPosition((current) => (
+        current && current.top === top && current.left === left ? current : { top, left }
+      ));
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [openPaneWindow, paneErrorWindow, paneLoadingWindow, paneMenuPosition?.left, paneMenuPosition?.top, windowPanes]);
+
+  useEffect(() => {
+    if (!openPaneWindow) return undefined;
+    const closeOnOutsidePointer = (event: PointerEvent): void => {
+      const target = event.target;
+      const trigger = paneTriggerRefs.current[openPaneWindow];
+      if (target instanceof Node && (trigger?.contains(target) || paneMenuRef.current?.contains(target))) return;
+      paneRequestRef.current += 1;
+      setOpenPaneWindow(null);
+      setPaneLoadingWindow(null);
+      setPaneErrorWindow(null);
+    };
+    document.addEventListener('pointerdown', closeOnOutsidePointer, true);
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointer, true);
+  }, [openPaneWindow]);
+
+  useEffect(() => {
+    if (open) return;
+    paneRequestRef.current += 1;
+    setOpenPaneWindow(null);
+    setPaneLoadingWindow(null);
+    setPaneErrorWindow(null);
+  }, [open]);
   const drawerWidth = drawerRef.current?.getBoundingClientRect().width || 360;
   const backdropOpacity = swipeOffset === null
     ? (open ? 1 : 0)
     : (open ? 1 + swipeOffset / drawerWidth : swipeOffset / drawerWidth);
   const menuSessionIndex = menuSession ? bound.indexOf(menuSession) : -1;
+  let paneMenuSessionName: string | null = null;
+  let paneMenuWindow: TmuxWindow | null = null;
+  if (openPaneWindow) {
+    for (const [name, windows] of Object.entries(sessionWindows)) {
+      const target = windows.find((window) => window.id === openPaneWindow);
+      if (target) {
+        paneMenuSessionName = name;
+        paneMenuWindow = target;
+        break;
+      }
+    }
+  }
   return (
     <>
       <div id="session-drawer" ref={drawerRef} className={`drawer${rootView === 'project' ? ' project-drawer' : ''} ${open ? 'open' : ''}${swipeOffset !== null ? ' is-dragging' : ''}`} style={swipeOffset === null ? undefined : { transform: `translateX(calc(${open ? '0px' : '-100%'} + ${swipeOffset}px))` }} onContextMenu={(event) => event.preventDefault()}>
@@ -590,6 +669,10 @@ export default function Drawer({
                     const windowIsPending = pendingWindow?.sessionName === name && pendingWindow.windowId === window.id;
                     const panePickerOpen = openPaneWindow === window.id;
                     const panes = windowPanes[window.id] || [];
+                    const paneTargetId = windowIsCurrent ? currentPaneId : window.activePaneId;
+                    const paneIndex = Math.max(0, panes.findIndex((pane) => pane.id === paneTargetId));
+                    const paneTarget = panes[paneIndex];
+                    const paneValue = `${paneSeq(paneIndex)} ${paneTarget?.command || paneTarget?.id || paneTargetId || ''}`.trim();
                     return (
                       <div key={window.id} className="session-window-entry">
                         <div
@@ -631,48 +714,16 @@ export default function Drawer({
                           {window.panes > 1 && <button
                             type="button"
                             className={`session-window-pane-trigger${panePickerOpen ? ' is-open' : ''}`}
+                            ref={(element) => { paneTriggerRefs.current[window.id] = element; }}
                             aria-expanded={panePickerOpen}
-                            aria-label={`${window.name || window.id} ${window.panes} panes`}
+                            aria-label={`${window.name || window.id} ${t('drawer.paneSwitcher')}`}
                             onClick={(event) => togglePanePicker(event, window)}
                             onKeyDown={(event) => event.stopPropagation()}
                           >
-                            <span className="session-window-count">{window.panes}</span><ChevronDownIcon />
+                            <span className="session-window-pane-value">{paneValue || paneSeq(0)}</span><ChevronDownIcon />
                           </button>}
                           <button type="button" className="session-window-menu" aria-label={`${window.name || window.id} ${t('common.more')}`} onClick={(event) => { event.stopPropagation(); onManageWindow(name, window); }}><MoreHorizontalIcon /></button>
                         </div>
-                        {panePickerOpen && <div className="session-pane-picker" role="listbox" aria-label={`${window.name || window.id} panes`}>
-                          {paneLoadingWindow === window.id && panes.length === 0 && <div className="session-pane-picker-skeleton" aria-hidden="true"><i /><i /></div>}
-                          {paneErrorWindow === window.id && <div className="session-pane-picker-error" role="alert">
-                            <span>{t('api.loadFailed')}</span>
-                            <button type="button" onClick={(event) => { event.stopPropagation(); loadWindowPanes(window); }}>{t('common.retry')}</button>
-                          </div>}
-                          {paneLoadingWindow !== window.id && paneErrorWindow !== window.id && panes.length === 0 && <div className="session-pane-picker-empty">{t('drawer.panesEmpty')}</div>}
-                          {panes.map((pane, index) => {
-                            const paneIsCurrent = windowIsCurrent && pane.id === currentPaneId;
-                            const paneView = paneInboxViews[pane.id];
-                            return <button
-                              type="button"
-                              role="option"
-                              aria-selected={paneIsCurrent}
-                              className={`session-pane-option${paneIsCurrent ? ' is-current' : ''}`}
-                              key={pane.id}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                const sessionId = topologyCache.current.ids[name];
-                                const windows = sessionWindows[name] || [];
-                                if (!sessionId) return;
-                                setPendingWindow({ sessionName: name, windowId: window.id });
-                                onSelectSession({ session: { id: sessionId, name }, windows, window, paneId: pane.id });
-                              }}
-                            >
-                              <span className="session-pane-seq" aria-hidden="true">{index + 1}</span>
-                              <span className="session-pane-label">{pane.command || pane.id}</span>
-                              {pane.agent && <AgentMark agent={pane.agent} />}
-                              {paneView && <span className={`session-pane-inbox-dot ${paneView}`} role="img" aria-label={VIEW_LABEL[paneView]} />}
-                              {paneIsCurrent && <span className="session-pane-check" aria-hidden="true">✓</span>}
-                            </button>;
-                          })}
-                        </div>}
                       </div>
                     );
                   })}
@@ -736,6 +787,53 @@ export default function Drawer({
           </button>
         </div>}
       </div>
+      {paneMenuWindow && paneMenuPosition && paneMenuSessionName && <OverlayPortal>
+        <div
+          ref={paneMenuRef}
+          className="dd-menu wt-menu drawer-pane-menu"
+          role="listbox"
+          aria-label={`${paneMenuWindow.name || paneMenuWindow.id} panes`}
+          style={{ top: paneMenuPosition.top, left: paneMenuPosition.left }}
+        >
+          {paneLoadingWindow === paneMenuWindow.id && !(windowPanes[paneMenuWindow.id] || []).length && (
+            <div className="drawer-pane-menu-loading" aria-hidden="true"><i /><i /></div>
+          )}
+          {paneErrorWindow === paneMenuWindow.id && <div className="drawer-pane-menu-error" role="alert">
+            <span>{t('api.loadFailed')}</span>
+            <button type="button" onClick={(event) => { event.stopPropagation(); loadWindowPanes(paneMenuWindow!); }}>{t('common.retry')}</button>
+          </div>}
+          {paneLoadingWindow !== paneMenuWindow.id && paneErrorWindow !== paneMenuWindow.id
+            && !(windowPanes[paneMenuWindow.id] || []).length && <div className="drawer-pane-menu-empty">{t('drawer.panesEmpty')}</div>}
+          {(windowPanes[paneMenuWindow.id] || []).map((pane, index) => {
+            const paneIsCurrent = paneMenuSessionName === currentSessionName
+              && paneMenuWindow!.id === currentWindowId && pane.id === currentPaneId;
+            const paneView = paneInboxViews[pane.id];
+            return <button
+              type="button"
+              role="option"
+              aria-selected={paneIsCurrent}
+              className={`dd-option${paneIsCurrent ? ' is-selected' : ''}`}
+              key={pane.id}
+              onClick={(event) => {
+                event.stopPropagation();
+                const sessionId = topologyCache.current.ids[paneMenuSessionName!];
+                const windows = sessionWindows[paneMenuSessionName!] || [];
+                if (!sessionId) return;
+                setPendingWindow({ sessionName: paneMenuSessionName!, windowId: paneMenuWindow!.id });
+                setOpenPaneWindow(null);
+                onSelectSession({ session: { id: sessionId, name: paneMenuSessionName! }, windows, window: paneMenuWindow!, paneId: pane.id });
+              }}
+            >
+              <span className="dd-option-label">
+                <span className="dd-pane-seq" aria-hidden="true">{paneSeq(index)}</span>
+                {pane.agent && <AgentMark agent={pane.agent} />}
+                <span className="dd-pane-cmd">{pane.command || pane.id}{paneView && <span className={`pane-menu-inbox-dot ${paneView}`} role="img" aria-label={VIEW_LABEL[paneView]} />}</span>
+              </span>
+              {paneIsCurrent && <span className="dd-check" aria-hidden="true">✓</span>}
+            </button>;
+          })}
+        </div>
+      </OverlayPortal>}
       <div
         className={`drawer-backdrop${open ? ' open' : ''}${swipeOffset !== null ? ' is-dragging' : ''}`}
         style={swipeOffset === null ? undefined : { opacity: Math.max(0, Math.min(1, backdropOpacity)) }}

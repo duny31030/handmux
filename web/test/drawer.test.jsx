@@ -86,7 +86,7 @@ describe('Drawer (bound sessions)', () => {
     expect(main.querySelector('.session-inbox-dot')).toBeNull();
   });
 
-  it('shows the Agent mark, pane count badge, and inset Inbox dot on Window rows', async () => {
+  it('shows the Agent mark, pane switcher value, and inset Inbox dot on Window rows', async () => {
     getWindowsForSessions.mockResolvedValueOnce({
       '$1': [{ id: '@1', name: 'main', panes: 2 }, { id: '@2', name: 'shell', panes: 1 }],
       '$2': [],
@@ -101,13 +101,13 @@ describe('Drawer (bound sessions)', () => {
     await waitForSessions();
     const row = container.querySelector('[data-window-id="@1"]');
     expect(row.querySelector('.agent-mark')?.getAttribute('aria-label')).toBe('codex');
-    expect(row.querySelector('.session-window-count')?.textContent).toBe('2');
+    expect(row.querySelector('.session-window-pane-value')?.textContent).toBe('①');
     const dot = row.querySelector('.session-window-inbox-dot.needs');
     expect(dot?.getAttribute('aria-label')).toBe('需要你');
     expect(row.querySelector('.inbox-chip')).toBeNull();
     expect(dot?.nextElementSibling).toBe(row.querySelector('.session-window-label'));
     const singlePane = container.querySelector('[data-window-id="@2"]');
-    expect(singlePane.querySelector('.session-window-count')).toBeNull();
+    expect(singlePane.querySelector('.session-window-pane-value')).toBeNull();
     expect(singlePane.querySelector('.session-window-inbox-dot.working')?.getAttribute('aria-label')).toBe('进行中');
   });
 
@@ -120,20 +120,24 @@ describe('Drawer (bound sessions)', () => {
       { id: '%1', command: 'zsh', agent: null },
       { id: '%2', command: 'node', agent: 'codex' },
     ]);
-    await render({ onSelectSession, currentSessionName: 'main', currentWindowId: '@1', currentPaneId: '%2' });
+    await render({ onSelectSession, currentSessionName: 'main', currentWindowId: '@1', currentPaneId: '%2', currentPanes: [
+      { id: '%1', command: 'zsh', agent: null },
+      { id: '%2', command: 'node', agent: 'codex' },
+    ] });
     await waitForSessions();
     const multi = container.querySelector('[data-window-id="@1"]');
     const single = container.querySelector('[data-window-id="@2"]');
-    expect(multi.querySelector('.session-window-pane-trigger .session-window-count')?.textContent).toBe('2');
-    expect(single.querySelector('.session-window-count')).toBeNull();
+    expect(multi.querySelector('.session-window-pane-value')?.textContent).toBe('② node');
+    expect(single.querySelector('.session-window-pane-value')).toBeNull();
     await act(async () => {
       multi.querySelector('.session-window-pane-trigger').dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     await vi.waitFor(() => expect(getPanes).toHaveBeenCalledWith('@1'));
-    const options = container.querySelectorAll('.session-pane-option');
+    const options = document.querySelectorAll('.drawer-pane-menu .dd-option');
     expect(options).toHaveLength(2);
-    expect(options[1].className).toContain('is-current');
+    expect(options[1].className).toContain('is-selected');
     expect(options[1].textContent).toContain('node');
+    expect(multi.querySelector('.session-window-pane-value')?.textContent).toBe('② node');
     await act(async () => {
       options[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
