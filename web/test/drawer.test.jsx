@@ -127,7 +127,7 @@ describe('Drawer (bound sessions)', () => {
     await waitForSessions();
     const multi = container.querySelector('[data-window-id="@1"]');
     const single = container.querySelector('[data-window-id="@2"]');
-    expect(multi.querySelector('.session-window-pane-value')?.textContent).toBe('② node');
+    expect(multi.querySelector('.session-window-pane-value')?.textContent).toBe('②');
     expect(single.querySelector('.session-window-pane-value')).toBeNull();
     await act(async () => {
       multi.querySelector('.session-window-pane-trigger').dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -137,7 +137,8 @@ describe('Drawer (bound sessions)', () => {
     expect(options).toHaveLength(2);
     expect(options[1].className).toContain('is-selected');
     expect(options[1].textContent).toContain('node');
-    expect(multi.querySelector('.session-window-pane-value')?.textContent).toBe('② node');
+    expect(options[1].querySelector('.agent-mark')?.getAttribute('aria-label')).toBe('codex');
+    expect(multi.querySelector('.session-window-pane-value')?.textContent).toBe('②');
     await act(async () => {
       options[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });

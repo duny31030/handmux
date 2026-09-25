@@ -671,8 +671,7 @@ export default function Drawer({
                     const panes = windowPanes[window.id] || [];
                     const paneTargetId = windowIsCurrent ? currentPaneId : window.activePaneId;
                     const paneIndex = Math.max(0, panes.findIndex((pane) => pane.id === paneTargetId));
-                    const paneTarget = panes[paneIndex];
-                    const paneValue = `${paneSeq(paneIndex)} ${paneTarget?.command || paneTarget?.id || paneTargetId || ''}`.trim();
+                    const paneValue = paneSeq(paneIndex);
                     return (
                       <div key={window.id} className="session-window-entry">
                         <div
