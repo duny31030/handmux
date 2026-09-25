@@ -46,35 +46,36 @@ describe('useKeyboardInset', () => {
     expect(softKeyboardUp(768)).toBe(true); // stable keyboard-down baseline
   });
 
-  it('subtracts iOS focus scrolling from the app lift across keyboard cycles', () => {
+  it('keeps the app lift stable while iOS scrolls the focused field', () => {
     Object.defineProperty(window, 'innerHeight', { value: 768, configurable: true });
-    const listeners = new Set();
+    const listeners = { resize: new Set(), scroll: new Set() };
     const vv = {
       width: 390,
       height: 768,
       offsetTop: 0,
-      addEventListener: (_type, fn) => listeners.add(fn),
-      removeEventListener: (_type, fn) => listeners.delete(fn),
+      addEventListener: (type, fn) => listeners[type].add(fn),
+      removeEventListener: (type, fn) => listeners[type].delete(fn),
     };
     Object.defineProperty(window, 'visualViewport', { value: vv, configurable: true });
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
     act(() => root.render(<Probe />));
+    const emit = (type) => listeners[type].forEach((fn) => fn());
     const update = (height, offsetTop) => act(() => {
       vv.height = height;
       vv.offsetTop = offsetTop;
-      listeners.forEach((fn) => fn());
+      emit('resize');
     });
 
     update(400, 0);
     expect(container.textContent).toBe('inset:368');
-    update(400, 368);
-    expect(container.textContent).toBe('inset:0');
+    act(() => { vv.offsetTop = 368; emit('scroll'); });
+    expect(container.textContent).toBe('inset:368');
     update(768, 120);
     expect(container.textContent).toBe('inset:0');
     update(400, 240);
-    expect(container.textContent).toBe('inset:128');
+    expect(container.textContent).toBe('inset:368');
     update(768, 0);
     expect(container.textContent).toBe('inset:0');
   });

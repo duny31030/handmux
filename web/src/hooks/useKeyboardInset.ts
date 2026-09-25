@@ -20,20 +20,35 @@ export function useKeyboardInset(): number {
   useEffect(() => {
     const viewport = window.visualViewport;
     if (!viewport) return undefined;
+    // Keep a keyboard-down height for the lifetime of this viewport. iOS changes offsetTop while it
+    // scrolls a focused textarea into view; that is page motion, not a new keyboard height. Recomputing
+    // the app transform from every scroll event made hydration produce 368 -> 0 -> 368px and handed
+    // focus back to Safari as if the keyboard had been dismissed.
+    const baseline = {
+      width: viewport.width,
+      fullHeight: Math.max(window.innerHeight, viewport.height),
+    };
     const update = (): void => {
-      // This is LAYOUT overlap, not keyboard presence. iOS may already scroll the visual viewport upward
-      // to reveal the focused field, so offsetTop must cancel that part of our app lift. Android may shrink
-      // innerHeight together with visualViewport.height, in which case the layout already fits and needs no
-      // second lift. Keyboard PRESENCE deliberately uses the separate baseline-aware softKeyboardUp().
-      const overlap = window.innerHeight - viewport.height - viewport.offsetTop;
-      setInset(Math.max(0, Math.round(overlap)));
+      if (Math.abs(viewport.width - baseline.width) > 40) {
+        baseline.width = viewport.width;
+        baseline.fullHeight = Math.max(window.innerHeight, viewport.height);
+      } else {
+        baseline.fullHeight = Math.max(baseline.fullHeight, window.innerHeight, viewport.height);
+      }
+      const keyboardHeight = baseline.fullHeight - viewport.height;
+      // Android commonly shrinks both the layout and visual viewports together. In that case the page
+      // already fits above the keyboard and applying the same height as a transform would double-lift it.
+      const layoutAlreadyFits = baseline.fullHeight - window.innerHeight > 120
+        && Math.abs((baseline.fullHeight - window.innerHeight) - keyboardHeight) < 80;
+      const next = keyboardHeight > 120 && !layoutAlreadyFits ? Math.round(keyboardHeight) : 0;
+      setInset((current) => current === next ? current : next);
     };
     update();
     viewport.addEventListener('resize', update);
-    viewport.addEventListener('scroll', update);
+    // Deliberately do not subscribe to visualViewport.scroll. offsetTop churn during focus scrolling
+    // must not move the whole app or change keyboard geometry.
     return () => {
       viewport.removeEventListener('resize', update);
-      viewport.removeEventListener('scroll', update);
     };
   }, []);
   return inset;
