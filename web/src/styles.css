@@ -690,6 +690,17 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
   padding: 7px 8px; text-align: left;
   background: rgba(255, 255, 255, 0.045); border: 1px solid rgba(255, 255, 255, 0.10);
   transition: transform .12s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.pane-map-inbox-dot { position:absolute; top:5px; right:5px; z-index:2; width:7px; height:7px; border:1.5px solid rgba(24,26,30,.82); border-radius:50%; background:rgba(235,235,245,.45); pointer-events:none; }
+.pane-map-inbox-dot.needs { background:#e0a020; }
+.pane-map-inbox-dot.done { background:var(--green); }
+.pane-map-inbox-dot.error { background:var(--red); }
+.pane-map-inbox-dot.working { background:var(--blue); animation:tw-blink 1s ease-in-out infinite; }
+.pane-map-cell.is-current .pane-map-inbox-dot { border-color:rgba(255,255,255,.82); }
+.pane-menu-inbox-dot { flex:none; width:7px; height:7px; border-radius:50%; background:rgba(235,235,245,.42); }
+.pane-menu-inbox-dot.needs { background:#e0a020; }
+.pane-menu-inbox-dot.done { background:var(--green); }
+.pane-menu-inbox-dot.error { background:var(--red); }
+.pane-menu-inbox-dot.working { background:var(--blue); animation:tw-blink 1s ease-in-out infinite; }
 .pane-map-cell:active .pmc-surf { transform: scale(.97); }
 .pane-map-cell .pmc-seq, .pane-map-cell .pmc-cmd { transition: color .18s ease; }
 /* Current pane: solid iOS-blue tile with white content — reads at a glance among the muted tiles. */
@@ -733,7 +744,8 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .pane-map-cell.is-tiny   .pmc-surf { align-items: center; justify-content: center; padding: 0; gap: 0; }
 @media (prefers-reduced-motion: reduce) {
   .pane-map { animation: none; }
-  .pane-map-cell .pmc-surf, .pane-map-cell.is-picking .pmc-surf { transition: none; animation: none; }
+  .pane-map-cell .pmc-surf, .pane-map-cell.is-picking .pmc-surf,
+  .pane-map-inbox-dot.working, .pane-menu-inbox-dot.working { transition: none; animation: none; }
 }
 .terminal-wrap { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 /* Width follows the real pane: the terminal renders at its natural cols width and the
@@ -1091,8 +1103,14 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .session-section-menu svg { width:20px; height:20px; opacity:1; }
 .session-section-menu:active { background:transparent; color:#fff; }
 .session-section-title { flex:0 1 auto; min-width:0; max-width:calc(100% - 60px); height:26px; display:flex; align-items:center; gap:0; padding:0; border:0; background:transparent !important; box-shadow:none !important; color:rgba(255,255,255,.94); text-align:left; font:14px/1 -apple-system,BlinkMacSystemFont,sans-serif; font-weight:700; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
-.session-section-icon { flex:none; display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; margin-right:7px; color:rgba(235,235,245,.62); }
+.session-section-icon { position:relative; flex:none; display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; margin-right:7px; color:rgba(235,235,245,.62); }
 .session-section-icon svg { width:16px; height:16px; }
+.session-inbox-dot { position:absolute; top:-2px; right:-3px; width:6px; height:6px; border:1.5px solid #1c1c1e; border-radius:50%; background:rgba(235,235,245,.42); transition:opacity .18s ease, transform .18s ease; }
+.session-inbox-dot.needs { background:#e0a020; }
+.session-inbox-dot.done { background:var(--green); }
+.session-inbox-dot.error { background:var(--red); }
+.session-inbox-dot.working { background:var(--blue); animation:tw-blink 1s ease-in-out infinite; }
+.session-section-header.is-open .session-inbox-dot { opacity:.28; transform:scale(.78); }
 .session-section.is-current .session-section-icon,
 .session-section-title[aria-current="page"] .session-section-icon { color:#34c759; }
 .session-section.is-current .session-section-title,
@@ -1100,7 +1118,6 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .session-section.is-current .session-section-toggle,
 .session-section-title[aria-current="page"] ~ .session-section-toggle { color:#34c759; }
 .session-section-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; letter-spacing:-.01em; }
-.session-pending-label { flex:none; margin-left:2px; color:rgba(235,235,245,.52); font-size:11px; font-weight:400; white-space:nowrap; }
 .session-section-body { display:grid; grid-template-rows:0fr; transition:grid-template-rows .24s cubic-bezier(.22,.8,.25,1); }
 .session-section-body.is-open { grid-template-rows:1fr; }
 .session-window-list { min-height:0; overflow:hidden; padding:2px 0 0; background:rgba(255,255,255,.045); opacity:0; transform:translateY(-4px); transition:opacity .18s ease,transform .24s cubic-bezier(.22,.8,.25,1); }
@@ -1145,7 +1162,7 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 @keyframes session-skeleton-shimmer { 0% { background-position:120% 0; } 100% { background-position:-80% 0; } }
 .workspace-load-error { padding:8px 14px; color:rgba(235,235,245,.62); font-size:13px; overflow-wrap:anywhere; }
 .workspace-load-error button { min-height:44px; padding:0 4px; border:0; background:transparent; color:var(--blue); }
-@media (prefers-reduced-motion: reduce) { .session-section-body,.session-window-list,.session-section-toggle,.session-section-skeleton-row i,.session-window-skeleton-row i,.session-window-inbox-dot.working { transition:none; animation:none; } }
+@media (prefers-reduced-motion: reduce) { .session-section-body,.session-window-list,.session-section-toggle,.session-section-skeleton-row i,.session-window-skeleton-row i,.session-inbox-dot,.session-window-inbox-dot.working { transition:none; animation:none; } }
 
 /* Project Task beta — a task-first peer to the existing session root. The surfaces deliberately reuse
    the app's dark iOS palette, 44pt controls, segmented controls and full-screen secondary pages. */

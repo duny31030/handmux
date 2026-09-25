@@ -8,6 +8,8 @@
 import { useRef, useLayoutEffect, useState, useEffect } from 'react';
 import { useLongPress } from '../hooks/useLongPress.js';
 import { AgentMark } from './icons.jsx';
+import { VIEW_LABEL } from '../inbox.js';
+import type { InboxView } from '../inbox.js';
 import { paneLayout, hasGeometry, cellFit, MAP_W, MAP_H, MAP_PAD } from '../paneLayout.js';
 import { t } from '../i18n';
 import LensSwitch from './LensSwitch.jsx';
@@ -28,11 +30,13 @@ export interface WorkspacePane extends PaneLayoutSource {
 }
 
 type AgentMap = Readonly<Record<string, string | null | undefined>>;
+type PaneInboxMap = Readonly<Record<string, InboxView | null | undefined>>;
 
 export interface WindowBarProps {
   windows: readonly WorkspaceWindow[];
   windowAgents?: AgentMap;
   paneAgents?: AgentMap;
+  paneInboxViews?: PaneInboxMap;
   currentAgent?: string | null;
   currentWindowId: string;
   panes: readonly WorkspacePane[];
@@ -95,11 +99,12 @@ interface PaneMapCellProps {
   releasing: boolean;
   picking: boolean;
   agent?: string | null;
+  inboxView?: InboxView | null;
   onChoose: (paneId: string) => void;
   onManage?: (paneId: string) => void;
 }
 
-function PaneMapCell({ cell, cur, releasing, picking, agent, onChoose, onManage }: PaneMapCellProps) {
+function PaneMapCell({ cell, cur, releasing, picking, agent, inboxView, onChoose, onManage }: PaneMapCellProps) {
   const fit = cellFit(cell); // '' | 'flat' | 'narrow' | 'tiny'
   const cmd = cell.command || cell.id;
   const hasDimensions = Number.isFinite(cell.cols) && Number.isFinite(cell.rows);
@@ -117,6 +122,8 @@ function PaneMapCell({ cell, cur, releasing, picking, agent, onChoose, onManage 
       {...lp}
     >
       <span className="pmc-surf">
+        {inboxView && <span className={`pane-map-inbox-dot ${inboxView}`} role="img"
+          aria-label={VIEW_LABEL[inboxView]} />}
         {fit === 'narrow' || fit === 'tiny' ? (
           <span className="pmc-seq" aria-hidden="true">{seq(cell.seq)}</span>
         ) : fit === 'flat' ? (
@@ -143,6 +150,7 @@ interface PaneTabProps {
   window: WorkspaceWindow;
   panes: readonly WorkspacePane[];
   paneAgents?: AgentMap;
+  paneInboxViews?: PaneInboxMap;
   currentPaneId: string;
   agent?: string | null;
   onManage: (window: WorkspaceWindow) => void;
@@ -159,6 +167,7 @@ function PaneTab({
   window: win,
   panes,
   paneAgents = {},
+  paneInboxViews = {},
   currentPaneId,
   agent,
   onManage,
@@ -321,6 +330,7 @@ function PaneTab({
                     releasing={isCur && !!picking && picking !== currentPaneId}
                     picking={picking === c.id}
                     agent={paneAgents[c.id] ?? null}
+                    inboxView={paneInboxViews[c.id] ?? null}
                     onChoose={choose}
                     {...(onManagePane ? { onManage: onManagePane } : {})}
                   />
@@ -344,6 +354,8 @@ function PaneTab({
                   {paneAgents[p.id] && <AgentMark agent={paneAgents[p.id] ?? null} />}
                   <span className="dd-pane-cmd">{p.command || p.id}</span>
                 </span>
+                {paneInboxViews[p.id] && <span className={`pane-menu-inbox-dot ${paneInboxViews[p.id]}`} role="img"
+                  aria-label={VIEW_LABEL[paneInboxViews[p.id] as InboxView]} />}
                 {p.id === currentPaneId && <span className="dd-check" aria-hidden="true">✓</span>}
               </button>
             ))}
@@ -355,7 +367,7 @@ function PaneTab({
 }
 
 export default function WindowBar({
-  windows, windowAgents = {}, paneAgents = {}, currentAgent, currentWindowId, panes, currentPaneId, onSelectWindow, onSelectPane, onNewWindow, onManageWindow,
+  windows, windowAgents = {}, paneAgents = {}, paneInboxViews = {}, currentAgent, currentWindowId, panes, currentPaneId, onSelectWindow, onSelectPane, onNewWindow, onManageWindow,
   onManagePane, onBeforePaneMapOpen, paneSheetOpen = false, openMapFor = null, onMapOpened, onPaneMapOpenChange, trackWindowId,
   lens = 'terminal', onLensChange = () => {}, chatLensEnabled = false,
 }: WindowBarProps) {
@@ -394,6 +406,7 @@ export default function WindowBar({
                 window={w}
                 panes={panes}
                 paneAgents={paneAgents}
+                paneInboxViews={paneInboxViews}
                 currentPaneId={currentPaneId}
                 agent={Object.hasOwn(windowAgents, w.id)
                   ? windowAgents[w.id] ?? null

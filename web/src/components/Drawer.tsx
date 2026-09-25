@@ -6,7 +6,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import { relTime, VIEW_LABEL } from '../inbox.js';
-import type { InboxView } from '../inbox.js';
+import type { InboxTarget, InboxView } from '../inbox.js';
 import WorkspaceRecoveryCard from './WorkspaceRecoveryCard.jsx';
 import { getSessions, getWindowsForSessions } from '../api.js';
 import type { TmuxSession, TmuxWindow } from '../api.js';
@@ -16,9 +16,9 @@ import ActionSheet from './ActionSheet.jsx';
 import { AgentMark, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon, CommandIcon, GearIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, XIcon } from './icons.jsx';
 
 const EXPANDED_SESSIONS_KEY = 'handmux.drawer.expanded-sessions';
-const EMPTY_PENDING_SESSIONS: ReadonlySet<string> = new Set();
 const EMPTY_WINDOW_AGENTS: Readonly<Record<string, string | null | undefined>> = {};
-const EMPTY_WINDOW_INBOX: Readonly<Record<string, InboxView | null | undefined>> = {};
+const EMPTY_SESSION_INBOX: Readonly<Record<string, InboxView | null | undefined>> = {};
+const EMPTY_WINDOW_INBOX: Readonly<Record<string, InboxTarget | null | undefined>> = {};
 
 function hasHorizontalScrollAhead(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
@@ -115,9 +115,9 @@ interface DrawerProps {
   windowOrderVersion?: number;
   revealRevision?: number;
   rootView?: 'session' | 'project';
-  pendingSessions?: ReadonlySet<string>;
+  sessionInboxViews?: Readonly<Record<string, InboxView | null | undefined>>;
   windowAgents?: Readonly<Record<string, string | null | undefined>>;
-  windowInboxViews?: Readonly<Record<string, InboxView | null | undefined>>;
+  windowInboxTargets?: Readonly<Record<string, InboxTarget | null | undefined>>;
 }
 
 /**
@@ -138,8 +138,8 @@ export default function Drawer({
   orphans = [], onTakeoverRequest,
   recoveryPlan = null, recoveryOperation = null, onOpenRecovery = () => {},
   projectTaskBeta = false, onSwitchProject = () => {}, onSwitchSession = () => {}, onOpenSettings = () => {}, onNewWindow = () => {}, onManageWindow = () => {}, onRenameSession = () => {}, onDeleteSession = () => {}, onMoveSession = () => {}, windowOrderVersion = 0, rootView = 'session',
-  revealRevision = 0, pendingSessions = EMPTY_PENDING_SESSIONS, windowAgents = EMPTY_WINDOW_AGENTS,
-  windowInboxViews = EMPTY_WINDOW_INBOX,
+  revealRevision = 0, sessionInboxViews = EMPTY_SESSION_INBOX,
+  windowAgents = EMPTY_WINDOW_AGENTS, windowInboxTargets = EMPTY_WINDOW_INBOX,
 }: DrawerProps) {
   const [orphOpen, setOrphOpen] = useState(false);
   const [sessionWindows, setSessionWindows] = useState<Record<string, TmuxWindow[]>>({});
@@ -523,9 +523,13 @@ export default function Drawer({
           {sessionsReady && <div className="session-sections" role="tree" aria-label={t('drawer.sessionWindowTitle')}>
           {bound.map((name) => (
             <section key={name} className={`session-section${name === currentSessionName ? ' is-current' : ''}`}>
-              <div className="session-section-header" role="treeitem" aria-expanded={expandedSessions.has(name)} onClick={() => toggleSession(name)}>
+              <div className={`session-section-header${expandedSessions.has(name) ? ' is-open' : ''}`} role="treeitem" aria-expanded={expandedSessions.has(name)} onClick={() => toggleSession(name)}>
                   <button type="button" aria-expanded={expandedSessions.has(name)} aria-current={name === currentSessionName ? 'page' : undefined} className="session-section-title">
-                  <span className="session-section-icon"><CommandIcon /></span><span className="session-section-label">{name}</span>
+                  <span className="session-section-icon"><CommandIcon />{sessionInboxViews[name] && <span
+                    className={`session-inbox-dot ${sessionInboxViews[name]}`}
+                    role="img"
+                    aria-label={VIEW_LABEL[sessionInboxViews[name] as InboxView]}
+                  />}</span><span className="session-section-label">{name}</span>
                 </button>
                 <button
                 type="button"
@@ -533,7 +537,6 @@ export default function Drawer({
                   aria-expanded={expandedSessions.has(name)}
                   aria-label={`${name} — ${t(expandedSessions.has(name) ? 'doc.tocCollapse' : 'doc.tocExpand')}`}
                 ><ChevronDownIcon /></button>
-                {pendingSessions.has(name) && <span className="session-pending-label">{t('inbox.pending')}</span>}
               <button
                 type="button"
                 className="session-section-menu"
@@ -561,28 +564,32 @@ export default function Drawer({
                       onClick={() => {
                         const sessionId = topologyCache.current.ids[name];
                         const windows = sessionWindows[name] || [];
+                        const inboxTarget = windowInboxTargets[window.id];
                         if (!sessionId) return;
                         setPendingWindow({ sessionName: name, windowId: window.id });
-                        onSelectSession({ session: { id: sessionId, name }, windows, window });
+                        onSelectSession({ session: { id: sessionId, name }, windows, window,
+                          ...(inboxTarget?.paneId ? { paneId: inboxTarget.paneId } : {}) });
                       }}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
                           event.preventDefault();
                           const sessionId = topologyCache.current.ids[name];
                           const windows = sessionWindows[name] || [];
+                          const inboxTarget = windowInboxTargets[window.id];
                           if (!sessionId) return;
                           setPendingWindow({ sessionName: name, windowId: window.id });
-                          onSelectSession({ session: { id: sessionId, name }, windows, window });
+                          onSelectSession({ session: { id: sessionId, name }, windows, window,
+                            ...(inboxTarget?.paneId ? { paneId: inboxTarget.paneId } : {}) });
                         }
                       }}
                     >
-                      {windowInboxViews[window.id] && <span
-                        className={`session-window-inbox-dot ${windowInboxViews[window.id]}`}
+                      {windowInboxTargets[window.id] && <span
+                        className={`session-window-inbox-dot ${windowInboxTargets[window.id]?.view}`}
                         role="img"
-                        aria-label={VIEW_LABEL[windowInboxViews[window.id] as InboxView]}
+                        aria-label={VIEW_LABEL[windowInboxTargets[window.id]?.view as InboxView]}
                       />}
                       <span className="session-window-label">{window.name || window.id}</span>
-                      {windowAgents[window.id] && <AgentMark agent={windowAgents[window.id]} />}
+                      {windowAgents[window.id] && <AgentMark agent={windowAgents[window.id] ?? null} />}
                       <span className="session-window-count" aria-label={`${window.panes} panes`}>{window.panes}</span>
                       <button type="button" className="session-window-menu" aria-label={`${window.name || window.id} ${t('common.more')}`} onClick={(event) => { event.stopPropagation(); onManageWindow(name, window); }}><MoreHorizontalIcon /></button>
                     </div>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyTerminalReads, inboxRows, topView, windowInboxViews, pendingInboxSessions, maxTs, relTime, VIEW_LABEL, viewCounts, visibleCurrentPaneState } from '../src/inbox.js';
+import { applyTerminalReads, inboxRows, topView, windowInboxViews, windowInboxTargets, sessionInboxViews, paneInboxViews, pendingInboxSessions, maxTs, relTime, VIEW_LABEL, viewCounts, visibleCurrentPaneState } from '../src/inbox.js';
 
 const states = {
   '%1': { session: 'a', window: '@1', windowName: 'edit', kind: 'permission', msg: '', ts: 100 },
@@ -139,6 +139,38 @@ describe('windowInboxViews (drawer window labels)', () => {
   });
   it('ignores rows without a window location', () => {
     expect(windowInboxViews([{ ...row('@1', 'done'), window: '' }])).toEqual({});
+  });
+});
+
+describe('windowInboxTargets (drawer window navigation)', () => {
+  const row = (window, view, pane, ts = 1) => ({
+    pane, session: 's', window, windowName: window, view, msg: '', ts,
+  });
+  it('keeps the winning pane and count together with the window status', () => {
+    expect(windowInboxTargets([
+      row('@1', 'working', '%1', 10), row('@1', 'needs', '%2', 20), row('@1', 'needs', '%3', 30),
+      row('@2', 'done', '%4', 40), row('@2', 'error', '%5', 50),
+    ])).toEqual({
+      '@1': { view: 'needs', paneId: '%3', count: 3, ts: 30 },
+      '@2': { view: 'error', paneId: '%5', count: 2, ts: 50 },
+    });
+  });
+  it('ignores rows without a window location', () => {
+    expect(windowInboxTargets([row('', 'done', '%1')])).toEqual({});
+  });
+});
+
+describe('sessionInboxViews and paneInboxViews', () => {
+  const row = (session, window, pane, view) => ({
+    pane, session, window, windowName: window, view, msg: '', ts: 1,
+  });
+  it('projects the highest-priority status at session and pane granularity', () => {
+    const rows = [
+      row('a', '@1', '%1', 'working'), row('a', '@2', '%2', 'error'),
+      row('b', '@3', '%3', 'done'),
+    ];
+    expect(sessionInboxViews(rows)).toEqual({ a: 'error', b: 'done' });
+    expect(paneInboxViews(rows)).toEqual({ '%1': 'working', '%2': 'error', '%3': 'done' });
   });
 });
 

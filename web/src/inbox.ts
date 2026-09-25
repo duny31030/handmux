@@ -48,6 +48,13 @@ export const VIEW_LABEL: Record<InboxView, string> = {
   error: t('inbox.view.error'),
 };
 
+export interface InboxTarget {
+  view: InboxView;
+  paneId: string;
+  count: number;
+  ts: number;
+}
+
 // One row per Claude pane, grouped-sortable. `done` rows are HISTORY-FILTERED: a done shows only when
 // its ts beats both the device high-water mark (readTs) and the per-pane seen ts. working/needs are
 // current state and never filtered. Sort: session asc, then needs>working>done, then most-recent.
@@ -107,16 +114,52 @@ export function topView(rows: readonly InboxRow[]): InboxView | null {
   return best;
 }
 
-// Project the filtered Inbox roster onto the drawer's Window rows. A window can contain several Agent
-// panes, so the drawer shows the most urgent label for the whole window.
-export function windowInboxViews(rows: readonly InboxRow[]): Record<string, InboxView> {
-  const result: Record<string, InboxView> = {};
+function preferInboxRow(current: InboxTarget | undefined, row: InboxRow): boolean {
+  return !current || VIEW_RANK[row.view] > VIEW_RANK[current.view]
+    || (VIEW_RANK[row.view] === VIEW_RANK[current.view] && row.ts > current.ts);
+}
+
+// Project the filtered Inbox roster onto the drawer's Window rows. Keep the winning pane together with
+// the colour: showing a dot for one pane and opening another is a misleading navigation result.
+export function windowInboxTargets(rows: readonly InboxRow[]): Record<string, InboxTarget> {
+  const result: Record<string, InboxTarget> = {};
   for (const row of rows) {
     if (!row.window) continue;
     const previous = result[row.window];
-    if (!previous || VIEW_RANK[row.view] > VIEW_RANK[previous]) result[row.window] = row.view;
+    if (previous) {
+      previous.count += 1;
+      if (preferInboxRow(previous, row)) {
+        result[row.window] = { ...previous, view: row.view, paneId: row.pane, ts: row.ts };
+      }
+    } else {
+      result[row.window] = { view: row.view, paneId: row.pane, count: 1, ts: row.ts };
+    }
   }
   return result;
+}
+
+// Keep the old view-only projection for callers that only need a colour. New navigation code should use
+// windowInboxTargets so the pane identity cannot be discarded at the drawer boundary.
+export function windowInboxViews(rows: readonly InboxRow[]): Record<string, InboxView> {
+  return Object.fromEntries(Object.entries(windowInboxTargets(rows)).map(([window, target]) => [window, target.view]));
+}
+
+// Session-level projection for the compact status mark in the drawer. Unlike the old pending-only label,
+// this includes unread completed/error rows too, so a collapsed Session still explains a Window dot.
+export function sessionInboxViews(rows: readonly InboxRow[]): Record<string, InboxView> {
+  const result: Record<string, InboxView> = {};
+  for (const row of rows) {
+    if (!row.session) continue;
+    const previous = result[row.session];
+    if (!previous || VIEW_RANK[row.view] > VIEW_RANK[previous]) result[row.session] = row.view;
+  }
+  return result;
+}
+
+// Pane-level status used by the active Window's split map. This keeps the map useful when one Window has
+// more than one inbox row; the drawer still remains a two-level Session → Window outline.
+export function paneInboxViews(rows: readonly InboxRow[]): Record<string, InboxView> {
+  return Object.fromEntries(rows.map((row) => [row.pane, row.view]));
 }
 
 // Session-level projection for the drawer. A session is marked pending while it has any live or

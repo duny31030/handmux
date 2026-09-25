@@ -76,13 +76,13 @@ describe('Drawer (bound sessions)', () => {
     expect(main.className).not.toContain('is-current');
   });
 
-  it('shows a quiet pending label beside sessions with inbox work', async () => {
-    await render({ pendingSessions: new Set(['server']) });
+  it('shows a compact status dot on sessions with inbox activity', async () => {
+    await render({ sessionInboxViews: { server: 'working' } });
     await waitForSessions();
     const server = [...container.querySelectorAll('.session-section')].find((r) => r.textContent.includes('server'));
     const main = [...container.querySelectorAll('.session-section')].find((r) => r.textContent.includes('main'));
-    expect(server.querySelector('.session-pending-label')?.textContent).toBe('待处理');
-    expect(main.querySelector('.session-pending-label')).toBeNull();
+    expect(server.querySelector('.session-inbox-dot.working')?.getAttribute('aria-label')).toBe('进行中');
+    expect(main.querySelector('.session-inbox-dot')).toBeNull();
   });
 
   it('shows the Agent mark, pane count badge, and inset Inbox dot on Window rows', async () => {
@@ -92,7 +92,10 @@ describe('Drawer (bound sessions)', () => {
     });
     await render({
       windowAgents: { '@1': 'codex' },
-      windowInboxViews: { '@1': 'needs', '@2': 'working' },
+      windowInboxTargets: {
+        '@1': { view: 'needs', paneId: '%11', count: 1, ts: 1 },
+        '@2': { view: 'working', paneId: '%12', count: 1, ts: 1 },
+      },
     });
     await waitForSessions();
     const row = container.querySelector('[data-window-id="@1"]');
@@ -105,6 +108,23 @@ describe('Drawer (bound sessions)', () => {
     const singlePane = container.querySelector('[data-window-id="@2"]');
     expect(singlePane.querySelector('.session-window-count')?.textContent).toBe('1');
     expect(singlePane.querySelector('.session-window-inbox-dot.working')?.getAttribute('aria-label')).toBe('进行中');
+  });
+
+  it('passes the Window inbox target pane when selecting a Window row', async () => {
+    const onSelectSession = vi.fn();
+    getWindowsForSessions.mockResolvedValueOnce({
+      '$1': [{ id: '@1', name: 'main', panes: 2 }], '$2': [],
+    });
+    await render({ onSelectSession, windowInboxTargets: {
+      '@1': { view: 'needs', paneId: '%2', count: 1, ts: 20 },
+    } });
+    await waitForSessions();
+    await act(async () => {
+      container.querySelector('[data-window-id="@1"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onSelectSession).toHaveBeenCalledWith(expect.objectContaining({
+      window: expect.objectContaining({ id: '@1' }), paneId: '%2',
+    }));
   });
 
   it('clicking a name toggles its Window list', async () => {

@@ -29,7 +29,7 @@ import {
 } from './api.js';
 import { runSplitPane, runClosePane } from './paneActions.js';
 import BrowserSheet from './components/BrowserSheet.jsx';
-import { applyTerminalReads, inboxRows, topView, windowInboxViews, pendingInboxSessions, maxTs, visibleCurrentPaneState } from './inbox.js';
+import { applyTerminalReads, inboxRows, topView, windowInboxTargets, sessionInboxViews, paneInboxViews, maxTs, visibleCurrentPaneState } from './inbox.js';
 import type { PaneInboxState } from './inbox.js';
 import { moveTarget } from './windowOrder.js';
 import { reportBound, clearPaneNotification, getNotifications, deleteNotification } from './push.js';
@@ -2774,8 +2774,9 @@ export default function App() {
 
   const inboxList = inboxRows(states, seen, readTs == null ? Infinity : readTs);
   const inboxTop = topView(inboxList);
-  const windowInbox = windowInboxViews(inboxList);
-  const pendingInbox = pendingInboxSessions(inboxList);
+  const windowInbox = windowInboxTargets(inboxList);
+  const sessionInbox = sessionInboxViews(inboxList);
+  const paneInbox = paneInboxViews(inboxList);
   const inboxReconnecting = inboxReconnectNeeded(agentDiscovery);
   // windowId → agent id, for the per-window agent logo on a collapsed WindowTab (a single-pane window, or an
   // inactive multi-pane one where we only have this aggregate). The active multi-pane window renders per-pane
@@ -2981,9 +2982,9 @@ export default function App() {
         onMoveSession={moveSessionFromDrawer}
         windowOrderVersion={drawerWindowOrderVersion}
         rootView={drawerView}
-        pendingSessions={pendingInbox}
+        sessionInboxViews={sessionInbox}
         windowAgents={windowAgents}
-        windowInboxViews={windowInbox}
+        windowInboxTargets={windowInbox}
       />
       {logoutConfirm && <DeviceLogoutDialog busy={logoutBusy} error={logoutError}
         onClose={() => { setLogoutConfirm(false); setLogoutError(''); }}
@@ -3210,6 +3211,7 @@ export default function App() {
             windows={current.windows}
             windowAgents={windowAgents}
             paneAgents={paneAgents}
+            paneInboxViews={paneInbox}
             currentAgent={currentAgent}
             currentWindowId={current.window.id}
             panes={current.panes}

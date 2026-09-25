@@ -274,7 +274,7 @@ describe('WindowBar', () => {
   const paneMapCells = () => document.querySelectorAll('.pane-map-cell');
 
   it('opens a proportional pane map: one cell per pane with seq + command', () => {
-    render({ ...base, panes: geomPanes });
+    render({ ...base, panes: geomPanes, paneInboxViews: { '%2': 'needs' } });
     openPaneMenu();
     const cells = paneMapCells();
     expect(cells.length).toBe(2);
@@ -288,6 +288,8 @@ describe('WindowBar', () => {
     expect(cells[1].textContent).toContain('node');
     expect(cells[0].querySelector('.pmc-dims').textContent).toBe('40×24');
     expect(cells[1].querySelector('.pmc-dims').textContent).toBe('40×24');
+    expect(cells[1].querySelector('.pane-map-inbox-dot.needs')?.getAttribute('aria-label')).toBe('需要你');
+    expect(cells[0].querySelector('.pane-map-inbox-dot')).toBeNull();
   });
 
   it('falls back to the flat pane list when finite geometry has no drawable area', () => {
