@@ -122,14 +122,17 @@ function PaneMapCell({ cell, cur, releasing, picking, agent, inboxView, onChoose
       {...lp}
     >
       <span className="pmc-surf">
-        {inboxView && <span className={`pane-map-inbox-dot ${inboxView}`} role="img"
-          aria-label={VIEW_LABEL[inboxView]} />}
         {fit === 'narrow' || fit === 'tiny' ? (
-          <span className="pmc-seq" aria-hidden="true">{seq(cell.seq)}</span>
+          <>
+            <span className="pmc-seq" aria-hidden="true">{seq(cell.seq)}</span>
+            {inboxView && <span className={`pane-map-inbox-dot ${inboxView}`} role="img"
+              aria-label={VIEW_LABEL[inboxView]} />}
+          </>
         ) : fit === 'flat' ? (
           <>
             <span className="pmc-seq" aria-hidden="true">{seq(cell.seq)}</span>
-            <span className="pmc-cmd">{cmd}</span>
+            <span className="pmc-cmd"><span className="pmc-cmd-label">{cmd}</span>{inboxView && <span className={`pane-map-inbox-dot ${inboxView}`} role="img"
+              aria-label={VIEW_LABEL[inboxView]} />}</span>
           </>
         ) : (
           <>
@@ -138,7 +141,8 @@ function PaneMapCell({ cell, cur, releasing, picking, agent, inboxView, onChoose
               {agent && <AgentMark agent={agent} />}
               {showDimensions && <span className="pmc-dims" aria-hidden="true">{dimensions}</span>}
             </span>
-            <span className="pmc-cmd">{cmd}</span>
+            <span className="pmc-cmd"><span className="pmc-cmd-label">{cmd}</span>{inboxView && <span className={`pane-map-inbox-dot ${inboxView}`} role="img"
+              aria-label={VIEW_LABEL[inboxView]} />}</span>
           </>
         )}
       </span>
@@ -352,10 +356,9 @@ function PaneTab({
                 <span className="dd-option-label">
                   <span className="dd-pane-seq" aria-hidden="true">{seq(i)}</span>
                   {paneAgents[p.id] && <AgentMark agent={paneAgents[p.id] ?? null} />}
-                  <span className="dd-pane-cmd">{p.command || p.id}</span>
+                  <span className="dd-pane-cmd">{p.command || p.id}{paneInboxViews[p.id] && <span className={`pane-menu-inbox-dot ${paneInboxViews[p.id]}`} role="img"
+                    aria-label={VIEW_LABEL[paneInboxViews[p.id] as InboxView]} />}</span>
                 </span>
-                {paneInboxViews[p.id] && <span className={`pane-menu-inbox-dot ${paneInboxViews[p.id]}`} role="img"
-                  aria-label={VIEW_LABEL[paneInboxViews[p.id] as InboxView]} />}
                 {p.id === currentPaneId && <span className="dd-check" aria-hidden="true">✓</span>}
               </button>
             ))}

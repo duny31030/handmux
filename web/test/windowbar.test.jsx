@@ -289,6 +289,7 @@ describe('WindowBar', () => {
     expect(cells[0].querySelector('.pmc-dims').textContent).toBe('40×24');
     expect(cells[1].querySelector('.pmc-dims').textContent).toBe('40×24');
     expect(cells[1].querySelector('.pane-map-inbox-dot.needs')?.getAttribute('aria-label')).toBe('需要你');
+    expect(cells[1].querySelector('.pmc-cmd .pane-map-inbox-dot')).not.toBeNull();
     expect(cells[0].querySelector('.pane-map-inbox-dot')).toBeNull();
   });
 
