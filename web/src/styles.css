@@ -1,5 +1,6 @@
 * { box-sizing: border-box; }
 :root {
+  color-scheme: dark;
   /* iOS system accent tokens — one blue / green / red across the whole app */
   --blue: #0a84ff;
   --blue-press: #0a6fd8;

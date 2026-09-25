@@ -8,6 +8,28 @@ import { isBrowserFunctionKey } from './terminalPageKeyboard.js';
 
 export const TERMINAL_FONT_FAMILY = "ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, 'Cascadia Mono', 'Roboto Mono', 'Noto Sans Mono', 'DejaVu Sans Mono', 'Courier New', 'JetBrainsMono Nerd Font', 'TW Unifont', monospace";
 export const TERMINAL_THEME: ITheme = {
+  // Declare every base colour explicitly.  Browsers with forced dark mode can otherwise
+  // reinterpret xterm's default canvas/palette and turn normal ANSI output into black-on-black.
+  foreground: '#e6e6e6',
+  background: '#1a1b1e',
+  cursor: '#e6e6e6',
+  cursorAccent: '#1a1b1e',
+  black: '#4b5058',
+  red: '#ff7b72',
+  green: '#56d364',
+  yellow: '#e3b341',
+  blue: '#6cb6ff',
+  magenta: '#d2a8ff',
+  cyan: '#76e3ea',
+  white: '#e6edf3',
+  brightBlack: '#8b949e',
+  brightRed: '#ffa198',
+  brightGreen: '#7ee787',
+  brightYellow: '#f2cc60',
+  brightBlue: '#a5d6ff',
+  brightMagenta: '#d2a8ff',
+  brightCyan: '#b3f0ff',
+  brightWhite: '#ffffff',
   selectionBackground: 'rgba(10,132,255,0.9)',
   selectionForeground: '#ffffff',
 };
