@@ -698,7 +698,7 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .pane-map-cell.is-current .pane-map-inbox-dot,
 .pane-map-cell.is-picking .pane-map-inbox-dot { border-color:rgba(255,255,255,.88); }
 .pane-map-cell.is-current .pane-map-inbox-dot.working,
-.pane-map-cell.is-picking .pane-map-inbox-dot.working { background:#64d2ff; box-shadow:0 0 0 1px rgba(255,255,255,.22), 0 0 6px rgba(100,210,255,.72); }
+.pane-map-cell.is-picking .pane-map-inbox-dot.working { background:#0040dd; }
 .pane-menu-inbox-dot { flex:none; display:inline-block; width:7px; height:7px; margin-left:4px; border-radius:50%; background:rgba(235,235,245,.42); vertical-align:middle; }
 .pane-menu-inbox-dot.needs { background:#e0a020; }
 .pane-menu-inbox-dot.done { background:var(--green); }
@@ -732,9 +732,10 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
   font-size: 9.5px; line-height: 1; font-variant-numeric: tabular-nums; color: rgba(154,160,170,.66); }
 .pane-map-cell.is-current .pmc-dims, .pane-map-cell.is-picking .pmc-dims { color: rgba(255,255,255,.62); }
 .pane-map-cell.is-current.is-releasing .pmc-dims { color: rgba(154,160,170,.66); }
-.pane-map-cell .pmc-cmd { display:flex; align-items:center; gap:0; flex:1 1 auto; min-width:0; max-width:100%; overflow:hidden; white-space:nowrap;
+.pane-map-cell .pmc-cmd { display:flex; align-items:center; min-width:0; max-width:100%; overflow:hidden; white-space:nowrap;
   font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.25; color: var(--ink, #e6e6e6); }
 .pane-map-cell .pmc-cmd-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pane-map-cell .pmc-seq-line { display:inline-flex; align-items:center; }
 .pane-map-cell.is-current .pmc-cmd { color: #fff; }
 /* Tiles use the same height-driven model as everywhere else — a smaller box, same proportions, so a
    wide mark looks the same shape in the map as it does in a tab. */
@@ -743,9 +744,9 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 }
 /* Adaptive content by rendered tile size (classes from paneLayout.js cellFit): */
 .pane-map-cell.is-flat   .pmc-surf { flex-direction: row; align-items: center; gap: 6px; padding: 0 8px; }
-.pane-map-cell.is-narrow .pmc-surf { flex-direction: row; align-items: center; justify-content: center; gap: 3px; padding: 4px 2px; }
+.pane-map-cell.is-narrow .pmc-surf { align-items: center; justify-content: center; padding: 4px 2px; }
 .pane-map-cell.is-narrow .pmc-seq { font-size: 12px; }
-.pane-map-cell.is-tiny   .pmc-surf { flex-direction: row; align-items: center; justify-content: center; padding: 0; gap: 2px; }
+.pane-map-cell.is-tiny   .pmc-surf { align-items: center; justify-content: center; padding: 0; gap: 0; }
 @media (prefers-reduced-motion: reduce) {
   .pane-map { animation: none; }
   .pane-map-cell .pmc-surf, .pane-map-cell.is-picking .pmc-surf,

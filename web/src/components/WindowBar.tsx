@@ -123,11 +123,11 @@ function PaneMapCell({ cell, cur, releasing, picking, agent, inboxView, onChoose
     >
       <span className="pmc-surf">
         {fit === 'narrow' || fit === 'tiny' ? (
-          <>
+          <span className="pmc-seq-line">
             <span className="pmc-seq" aria-hidden="true">{seq(cell.seq)}</span>
             {inboxView && <span className={`pane-map-inbox-dot ${inboxView}`} role="img"
               aria-label={VIEW_LABEL[inboxView]} />}
-          </>
+          </span>
         ) : fit === 'flat' ? (
           <>
             <span className="pmc-seq" aria-hidden="true">{seq(cell.seq)}</span>
