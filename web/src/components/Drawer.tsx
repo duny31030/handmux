@@ -4,12 +4,13 @@
 // "未接管会话" section surfaces coding-agent sessions running outside tmux (orphans) — tap 接管 to resume
 // one into tmux (the takeover sheet, handled in App); see server/src/orphans.js.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { SyntheticEvent } from 'react';
 import { t } from '../i18n';
 import { relTime, VIEW_LABEL } from '../inbox.js';
 import type { InboxTarget, InboxView } from '../inbox.js';
 import WorkspaceRecoveryCard from './WorkspaceRecoveryCard.jsx';
-import { getSessions, getWindowsForSessions } from '../api.js';
-import type { TmuxSession, TmuxWindow } from '../api.js';
+import { getPanes, getSessions, getWindowsForSessions } from '../api.js';
+import type { TmuxPane, TmuxSession, TmuxWindow } from '../api.js';
 import type { MouseEvent } from 'react';
 import type { WorkspaceRecoveryPlan, WorkspaceRestoreOperation } from '../workspaceRecovery.js';
 import ActionSheet from './ActionSheet.jsx';
@@ -93,6 +94,7 @@ interface DrawerProps {
   onOpen?: () => void;
   currentSessionName?: string | null;
   currentWindowId?: string | null;
+  currentPaneId?: string | null;
   bound: string[];
   onSelectSession: (selection: DrawerSelection) => void;
   onUnbind: (name: string) => void;
@@ -116,6 +118,7 @@ interface DrawerProps {
   revealRevision?: number;
   rootView?: 'session' | 'project';
   sessionInboxViews?: Readonly<Record<string, InboxView | null | undefined>>;
+  paneInboxViews?: Readonly<Record<string, InboxView | null | undefined>>;
   windowAgents?: Readonly<Record<string, string | null | undefined>>;
   windowInboxTargets?: Readonly<Record<string, InboxTarget | null | undefined>>;
 }
@@ -134,15 +137,19 @@ export interface DrawerSelection {
 }
 
 export default function Drawer({
-  open, onOpen = () => {}, currentSessionName, currentWindowId = null, bound, onSelectSession, onUnbind, onBind, onClose,
+  open, onOpen = () => {}, currentSessionName, currentWindowId = null, currentPaneId = null, bound, onSelectSession, onUnbind, onBind, onClose,
   orphans = [], onTakeoverRequest,
   recoveryPlan = null, recoveryOperation = null, onOpenRecovery = () => {},
   projectTaskBeta = false, onSwitchProject = () => {}, onSwitchSession = () => {}, onOpenSettings = () => {}, onNewWindow = () => {}, onManageWindow = () => {}, onRenameSession = () => {}, onDeleteSession = () => {}, onMoveSession = () => {}, windowOrderVersion = 0, rootView = 'session',
   revealRevision = 0, sessionInboxViews = EMPTY_SESSION_INBOX,
-  windowAgents = EMPTY_WINDOW_AGENTS, windowInboxTargets = EMPTY_WINDOW_INBOX,
+  windowAgents = EMPTY_WINDOW_AGENTS, paneInboxViews = EMPTY_SESSION_INBOX, windowInboxTargets = EMPTY_WINDOW_INBOX,
 }: DrawerProps) {
   const [orphOpen, setOrphOpen] = useState(false);
   const [sessionWindows, setSessionWindows] = useState<Record<string, TmuxWindow[]>>({});
+  const [windowPanes, setWindowPanes] = useState<Record<string, TmuxPane[]>>({});
+  const [openPaneWindow, setOpenPaneWindow] = useState<string | null>(null);
+  const [paneLoadingWindow, setPaneLoadingWindow] = useState<string | null>(null);
+  const [paneErrorWindow, setPaneErrorWindow] = useState<string | null>(null);
   const [sessionsReady, setSessionsReady] = useState(false);
   const [topologyError, setTopologyError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
@@ -477,6 +484,34 @@ export default function Drawer({
   const toggleSession = (name: string): void => {
     setExpandedPreferences((current) => ({ ...current, [name]: !expandedSessions.has(name) }));
   };
+  const paneRequestRef = useRef(0);
+  const loadWindowPanes = (window: TmuxWindow): void => {
+    setPaneErrorWindow(null);
+    const request = ++paneRequestRef.current;
+    setPaneLoadingWindow(window.id);
+    void getPanes(window.id).then((panes) => {
+      if (paneRequestRef.current !== request) return;
+      setWindowPanes((current) => ({ ...current, [window.id]: panes }));
+      setPaneLoadingWindow(null);
+    }).catch(() => {
+      if (paneRequestRef.current !== request) return;
+      setPaneLoadingWindow(null);
+      setPaneErrorWindow(window.id);
+    });
+  };
+  const togglePanePicker = (event: SyntheticEvent, window: TmuxWindow): void => {
+    event.stopPropagation();
+    if (window.panes <= 1) return;
+    if (openPaneWindow === window.id) {
+      paneRequestRef.current += 1;
+      setOpenPaneWindow(null);
+      setPaneLoadingWindow(null);
+      setPaneErrorWindow(null);
+      return;
+    }
+    setOpenPaneWindow(window.id);
+    loadWindowPanes(window);
+  };
   const drawerWidth = drawerRef.current?.getBoundingClientRect().width || 360;
   const backdropOpacity = swipeOffset === null
     ? (open ? 1 : 0)
@@ -550,50 +585,97 @@ export default function Drawer({
               <div className={`session-section-body${expandedSessions.has(name) ? ' is-open' : ''}`} aria-hidden={!expandedSessions.has(name)}>
                 <div className="session-window-list">
                   {expandedSessions.has(name) && topologyCache.current.ids[name] && !sessionWindows[name] && !topologyError && <WindowSkeleton />}
-                  {(sessionWindows[name] || []).map((window) => (
-                    <div
-                      key={window.id}
-                      data-session-name={name}
-                      data-window-id={window.id}
-                      role="button"
-                      aria-current={(name === currentSessionName && window.id === currentWindowId)
-                        || (pendingWindow?.sessionName === name && pendingWindow.windowId === window.id) ? 'page' : undefined}
-                      tabIndex={expandedSessions.has(name) ? 0 : -1}
-                      className={`session-window-row ${(name === currentSessionName && window.id === currentWindowId)
-                        || (pendingWindow?.sessionName === name && pendingWindow.windowId === window.id) ? 'is-current' : ''}`}
-                      onClick={() => {
-                        const sessionId = topologyCache.current.ids[name];
-                        const windows = sessionWindows[name] || [];
-                        const inboxTarget = windowInboxTargets[window.id];
-                        if (!sessionId) return;
-                        setPendingWindow({ sessionName: name, windowId: window.id });
-                        onSelectSession({ session: { id: sessionId, name }, windows, window,
-                          ...(inboxTarget?.paneId ? { paneId: inboxTarget.paneId } : {}) });
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          const sessionId = topologyCache.current.ids[name];
-                          const windows = sessionWindows[name] || [];
-                          const inboxTarget = windowInboxTargets[window.id];
-                          if (!sessionId) return;
-                          setPendingWindow({ sessionName: name, windowId: window.id });
-                          onSelectSession({ session: { id: sessionId, name }, windows, window,
-                            ...(inboxTarget?.paneId ? { paneId: inboxTarget.paneId } : {}) });
-                        }
-                      }}
-                    >
-                      {windowInboxTargets[window.id] && <span
-                        className={`session-window-inbox-dot ${windowInboxTargets[window.id]?.view}`}
-                        role="img"
-                        aria-label={VIEW_LABEL[windowInboxTargets[window.id]?.view as InboxView]}
-                      />}
-                      <span className="session-window-label">{window.name || window.id}</span>
-                      {windowAgents[window.id] && <AgentMark agent={windowAgents[window.id] ?? null} />}
-                      <span className="session-window-count" aria-label={`${window.panes} panes`}>{window.panes}</span>
-                      <button type="button" className="session-window-menu" aria-label={`${window.name || window.id} ${t('common.more')}`} onClick={(event) => { event.stopPropagation(); onManageWindow(name, window); }}><MoreHorizontalIcon /></button>
-                    </div>
-                  ))}
+                  {(sessionWindows[name] || []).map((window) => {
+                    const windowIsCurrent = name === currentSessionName && window.id === currentWindowId;
+                    const windowIsPending = pendingWindow?.sessionName === name && pendingWindow.windowId === window.id;
+                    const panePickerOpen = openPaneWindow === window.id;
+                    const panes = windowPanes[window.id] || [];
+                    return (
+                      <div key={window.id} className="session-window-entry">
+                        <div
+                          data-session-name={name}
+                          data-window-id={window.id}
+                          role="button"
+                          aria-current={windowIsCurrent || windowIsPending ? 'page' : undefined}
+                          tabIndex={expandedSessions.has(name) ? 0 : -1}
+                          className={`session-window-row ${windowIsCurrent || windowIsPending ? 'is-current' : ''}`}
+                          onClick={() => {
+                            const sessionId = topologyCache.current.ids[name];
+                            const windows = sessionWindows[name] || [];
+                            const inboxTarget = windowInboxTargets[window.id];
+                            if (!sessionId) return;
+                            setPendingWindow({ sessionName: name, windowId: window.id });
+                            onSelectSession({ session: { id: sessionId, name }, windows, window,
+                              ...(inboxTarget?.paneId ? { paneId: inboxTarget.paneId } : {}) });
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              const sessionId = topologyCache.current.ids[name];
+                              const windows = sessionWindows[name] || [];
+                              const inboxTarget = windowInboxTargets[window.id];
+                              if (!sessionId) return;
+                              setPendingWindow({ sessionName: name, windowId: window.id });
+                              onSelectSession({ session: { id: sessionId, name }, windows, window,
+                                ...(inboxTarget?.paneId ? { paneId: inboxTarget.paneId } : {}) });
+                            }
+                          }}
+                        >
+                          {windowInboxTargets[window.id] && <span
+                            className={`session-window-inbox-dot ${windowInboxTargets[window.id]?.view}`}
+                            role="img"
+                            aria-label={VIEW_LABEL[windowInboxTargets[window.id]?.view as InboxView]}
+                          />}
+                          <span className="session-window-label">{window.name || window.id}</span>
+                          {windowAgents[window.id] && <AgentMark agent={windowAgents[window.id] ?? null} />}
+                          {window.panes > 1 && <button
+                            type="button"
+                            className={`session-window-pane-trigger${panePickerOpen ? ' is-open' : ''}`}
+                            aria-expanded={panePickerOpen}
+                            aria-label={`${window.name || window.id} ${window.panes} panes`}
+                            onClick={(event) => togglePanePicker(event, window)}
+                            onKeyDown={(event) => event.stopPropagation()}
+                          >
+                            <span className="session-window-count">{window.panes}</span><ChevronDownIcon />
+                          </button>}
+                          <button type="button" className="session-window-menu" aria-label={`${window.name || window.id} ${t('common.more')}`} onClick={(event) => { event.stopPropagation(); onManageWindow(name, window); }}><MoreHorizontalIcon /></button>
+                        </div>
+                        {panePickerOpen && <div className="session-pane-picker" role="listbox" aria-label={`${window.name || window.id} panes`}>
+                          {paneLoadingWindow === window.id && panes.length === 0 && <div className="session-pane-picker-skeleton" aria-hidden="true"><i /><i /></div>}
+                          {paneErrorWindow === window.id && <div className="session-pane-picker-error" role="alert">
+                            <span>{t('api.loadFailed')}</span>
+                            <button type="button" onClick={(event) => { event.stopPropagation(); loadWindowPanes(window); }}>{t('common.retry')}</button>
+                          </div>}
+                          {paneLoadingWindow !== window.id && paneErrorWindow !== window.id && panes.length === 0 && <div className="session-pane-picker-empty">{t('drawer.panesEmpty')}</div>}
+                          {panes.map((pane, index) => {
+                            const paneIsCurrent = windowIsCurrent && pane.id === currentPaneId;
+                            const paneView = paneInboxViews[pane.id];
+                            return <button
+                              type="button"
+                              role="option"
+                              aria-selected={paneIsCurrent}
+                              className={`session-pane-option${paneIsCurrent ? ' is-current' : ''}`}
+                              key={pane.id}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                const sessionId = topologyCache.current.ids[name];
+                                const windows = sessionWindows[name] || [];
+                                if (!sessionId) return;
+                                setPendingWindow({ sessionName: name, windowId: window.id });
+                                onSelectSession({ session: { id: sessionId, name }, windows, window, paneId: pane.id });
+                              }}
+                            >
+                              <span className="session-pane-seq" aria-hidden="true">{index + 1}</span>
+                              <span className="session-pane-label">{pane.command || pane.id}</span>
+                              {pane.agent && <AgentMark agent={pane.agent} />}
+                              {paneView && <span className={`session-pane-inbox-dot ${paneView}`} role="img" aria-label={VIEW_LABEL[paneView]} />}
+                              {paneIsCurrent && <span className="session-pane-check" aria-hidden="true">✓</span>}
+                            </button>;
+                          })}
+                        </div>}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </section>

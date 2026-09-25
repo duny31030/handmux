@@ -6,10 +6,11 @@ vi.mock('../src/api.js', () => ({
   getSessions: vi.fn(async () => [{ id: '$1', name: 'main' }, { id: '$2', name: 'server' }]),
   getWindowsForSessions: vi.fn(async (ids) => Object.fromEntries(ids.map((id) => [id, []])),
   ),
+  getPanes: vi.fn(async () => []),
 }));
 
 import Drawer from '../src/components/Drawer.jsx';
-import { getWindowsForSessions } from '../src/api.js';
+import { getPanes, getWindowsForSessions } from '../src/api.js';
 
 let container;
 let root;
@@ -106,8 +107,37 @@ describe('Drawer (bound sessions)', () => {
     expect(row.querySelector('.inbox-chip')).toBeNull();
     expect(dot?.nextElementSibling).toBe(row.querySelector('.session-window-label'));
     const singlePane = container.querySelector('[data-window-id="@2"]');
-    expect(singlePane.querySelector('.session-window-count')?.textContent).toBe('1');
+    expect(singlePane.querySelector('.session-window-count')).toBeNull();
     expect(singlePane.querySelector('.session-window-inbox-dot.working')?.getAttribute('aria-label')).toBe('进行中');
+  });
+
+  it('hides the single-pane count and opens a switcher for multi-pane Windows', async () => {
+    const onSelectSession = vi.fn();
+    getWindowsForSessions.mockResolvedValueOnce({
+      '$1': [{ id: '@1', name: 'main', panes: 2 }, { id: '@2', name: 'shell', panes: 1 }], '$2': [],
+    });
+    getPanes.mockResolvedValueOnce([
+      { id: '%1', command: 'zsh', agent: null },
+      { id: '%2', command: 'node', agent: 'codex' },
+    ]);
+    await render({ onSelectSession, currentSessionName: 'main', currentWindowId: '@1', currentPaneId: '%2' });
+    await waitForSessions();
+    const multi = container.querySelector('[data-window-id="@1"]');
+    const single = container.querySelector('[data-window-id="@2"]');
+    expect(multi.querySelector('.session-window-pane-trigger .session-window-count')?.textContent).toBe('2');
+    expect(single.querySelector('.session-window-count')).toBeNull();
+    await act(async () => {
+      multi.querySelector('.session-window-pane-trigger').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await vi.waitFor(() => expect(getPanes).toHaveBeenCalledWith('@1'));
+    const options = container.querySelectorAll('.session-pane-option');
+    expect(options).toHaveLength(2);
+    expect(options[1].className).toContain('is-current');
+    expect(options[1].textContent).toContain('node');
+    await act(async () => {
+      options[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onSelectSession).toHaveBeenCalledWith(expect.objectContaining({ paneId: '%1' }));
   });
 
   it('passes the Window inbox target pane when selecting a Window row', async () => {

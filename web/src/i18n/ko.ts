@@ -149,6 +149,7 @@ export default {
   'drawer.title': '세션',
   'drawer.sessionWindowTitle': '세션 및 창',
   'drawer.empty': '연결된 세션이 없습니다',
+  'drawer.panesEmpty': '사용 가능한 패널이 없습니다',
   'drawer.unbind': '연결 해제',
   'drawer.bind': '세션 연결',
   'drawer.logout': '로그아웃',

@@ -336,6 +336,7 @@ export default {
   'drawer.title': '会话',
   'drawer.sessionWindowTitle': '会话与窗口',
   'drawer.empty': '还没有绑定会话',
+  'drawer.panesEmpty': '没有可用的分屏',
   'drawer.unbind': '解绑',
   'drawer.bind': '绑定会话',
   'drawer.logout': '退出登录',

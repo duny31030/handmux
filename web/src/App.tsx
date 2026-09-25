@@ -2945,6 +2945,7 @@ export default function App() {
         onOpen={openDrawer}
         currentSessionName={current?.session?.name ?? null}
         currentWindowId={current?.window?.id ?? null}
+        currentPaneId={current?.paneId ?? null}
         bound={bound}
         revealRevision={drawerRevealRevision}
         onSelectSession={(selection) => {
@@ -2983,6 +2984,7 @@ export default function App() {
         windowOrderVersion={drawerWindowOrderVersion}
         rootView={drawerView}
         sessionInboxViews={sessionInbox}
+        paneInboxViews={paneInbox}
         windowAgents={windowAgents}
         windowInboxTargets={windowInbox}
       />

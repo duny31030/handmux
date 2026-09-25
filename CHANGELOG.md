@@ -4,6 +4,10 @@ All notable changes to handmux. Format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Changed
+
+- 抽屉中的单 pane Window 不再显示无意义的“1”；多 pane Window 可展开 pane 列表并直接切换。
+
 ### Fixed
 
 - 修复 Claude 后台 Shell 长时间运行时普通消息一直排队、任务不结束就无法发送的问题。
