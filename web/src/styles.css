@@ -1100,23 +1100,22 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .session-sections { width:100%; margin:0; padding:4px 0 20px; }
 .session-section { margin:0 0 4px; padding:0; }
 .session-section + .session-section { padding-top:8px; border-top:1px solid rgba(118,118,128,.12); }
-.session-section-header { min-height:28px; display:flex; align-items:center; padding:0 12px; background:transparent !important; box-shadow:none !important; cursor:pointer; -webkit-tap-highlight-color:transparent; }
-.session-section-toggle { flex:none; display:grid; place-items:center; width:18px; height:28px; margin-left:2px; padding:0; border:0; background:transparent !important; box-shadow:none !important; color:rgba(255,255,255,.76); -webkit-tap-highlight-color:transparent; }
+.session-section-header { min-height:32px; display:flex; align-items:center; padding:0 12px; background:transparent !important; box-shadow:none !important; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.session-section-toggle { flex:none; display:grid; place-items:center; width:20px; height:32px; margin-left:2px; padding:0; border:0; background:transparent !important; box-shadow:none !important; color:rgba(255,255,255,.76); -webkit-tap-highlight-color:transparent; }
 .session-section-toggle svg { width:12px; height:12px; transition:transform .22s cubic-bezier(.22,.8,.25,1); }
 .session-section-toggle:not(.is-open) svg { transform:rotate(-90deg); }
 .session-section-toggle:active { color:rgba(235,235,245,.70); }
-.session-section-menu { flex:none; display:grid; place-items:center; width:38px; height:28px; margin-left:auto; padding:0; border:0; border-radius:0; background:transparent !important; box-shadow:none !important; color:rgba(235,235,245,.88); -webkit-tap-highlight-color:transparent; }
+.session-section-menu { flex:none; display:grid; place-items:center; width:40px; height:32px; margin-left:auto; padding:0; border:0; border-radius:0; background:transparent !important; box-shadow:none !important; color:rgba(235,235,245,.88); -webkit-tap-highlight-color:transparent; }
 .session-section-menu svg { width:20px; height:20px; opacity:1; }
 .session-section-menu:active { background:transparent; color:#fff; }
-.session-section-title { flex:0 1 auto; min-width:0; max-width:calc(100% - 60px); height:26px; display:flex; align-items:center; gap:0; padding:0; border:0; background:transparent !important; box-shadow:none !important; color:rgba(255,255,255,.94); text-align:left; font:14px/1 -apple-system,BlinkMacSystemFont,sans-serif; font-weight:700; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
-.session-section-icon { position:relative; flex:none; display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; margin-right:7px; color:rgba(235,235,245,.62); }
-.session-section-icon svg { width:16px; height:16px; }
-.session-inbox-dot { position:absolute; top:-2px; right:-3px; width:6px; height:6px; border:1.5px solid #1c1c1e; border-radius:50%; background:rgba(235,235,245,.42); transition:opacity .18s ease, transform .18s ease; }
+.session-section-title { flex:0 1 auto; min-width:0; max-width:calc(100% - 62px); height:30px; display:flex; align-items:center; gap:0; padding:0; border:0; background:transparent !important; box-shadow:none !important; color:rgba(255,255,255,.94); text-align:left; font:15px/20px -apple-system,BlinkMacSystemFont,sans-serif; font-weight:700; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+.session-section-icon { position:relative; flex:none; display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; margin-right:8px; color:rgba(235,235,245,.62); }
+.session-section-icon svg { width:17px; height:17px; }
+.session-inbox-dot { position:absolute; top:-2px; right:-3px; width:7px; height:7px; border:1.5px solid #1c1c1e; border-radius:50%; background:rgba(235,235,245,.42); }
 .session-inbox-dot.needs { background:#e0a020; }
 .session-inbox-dot.done { background:var(--green); }
 .session-inbox-dot.error { background:var(--red); }
 .session-inbox-dot.working { background:var(--blue); animation:tw-blink 1s ease-in-out infinite; }
-.session-section-header.is-open .session-inbox-dot { opacity:.28; transform:scale(.78); }
 .session-section.is-current .session-section-icon,
 .session-section-title[aria-current="page"] .session-section-icon { color:#34c759; }
 .session-section.is-current .session-section-title,
