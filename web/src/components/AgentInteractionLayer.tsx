@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import type { AgentInteractionController } from '../hooks/useAgentInteraction.js';
 import type { AgentInteractionValue, PendingAgentInteraction } from '../agentInteractionTypes.js';
@@ -88,12 +88,23 @@ export default function AgentInteractionLayer({
   const [text, setText] = useState('');
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
+  const textInputRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     setSelected([]);
     setText('');
     setAnswers({});
     setError('');
   }, [interaction?.id]);
+  useEffect(() => {
+    if (!interaction || (interaction.type !== 'text' && interaction.type !== 'editor')) return;
+    // A pending interaction can arrive while the user is already typing in the conversation Composer.
+    // Native autoFocus would steal that focus during hydration and make mobile browsers dismiss and
+    // reopen the keyboard. Help only when the page has no other editor focused.
+    const active = document.activeElement;
+    if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
+      || active instanceof HTMLElement && active.isContentEditable) return;
+    textInputRef.current?.focus({ preventScroll: true });
+  }, [interaction?.id, interaction?.type]);
   if (!interaction) {
     if (!waiting || (controller.status !== 'reconnecting' && controller.status !== 'error')) return null;
     return (
@@ -148,7 +159,7 @@ export default function AgentInteractionLayer({
         </div>
       )}
       {(interaction.type === 'text' || interaction.type === 'editor') && (
-        <textarea className="chat-gate-input" value={text} disabled={busy} autoFocus
+        <textarea ref={textInputRef} className="chat-gate-input" value={text} disabled={busy}
           rows={interaction.type === 'editor' ? 4 : 2}
           onChange={(event) => setText(event.target.value)} />
       )}

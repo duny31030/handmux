@@ -1093,6 +1093,73 @@ describe('App window switching', () => {
     expect(windowBarProps().currentWindowId).toBe('@3');
     expect(screen.getByTestId('terminal-pane').textContent).toBe('%3');
   });
+
+  it('keeps the focused chat composer mounted while a switched window identifies its Agent', async () => {
+    const session = { id: '$7', name: 'current' };
+    const first = { id: '@1', name: 'one', active: true, panes: 1, activePaneId: '%1' };
+    const second = { id: '@2', name: 'two', active: false, panes: 1, activePaneId: '%2' };
+    const firstPane = { id: '%1', active: true, width: 80, height: 24, command: 'codex', cwd: '/work', agent: 'codex' };
+    const secondPane = { ...firstPane, id: '%2' };
+    const firstRun = { agentId: 'codex', paneId: '%1', runId: 'run-1', sessionId: 'session-1' };
+    const secondRun = { agentId: 'codex', paneId: '%2', runId: 'run-2', sessionId: 'session-2' };
+    const secondPanes = deferred<typeof secondPane[]>();
+    const secondPage = deferred<{
+      status: 'ok'; page: {
+        sessionId: string; viewId: string; historyVersion: string; hasMore: boolean;
+        items: unknown[];
+      };
+    }>();
+    localStorage.setItem('tw_bound', JSON.stringify([session.name]));
+    localStorage.setItem(`tw_lens_${firstPane.id}`, 'chat');
+    localStorage.setItem(`tw_lens_${secondPane.id}`, 'chat');
+    api.getSessions.mockResolvedValue([session]);
+    api.getWindows.mockResolvedValue([first, second]);
+    api.getPanes.mockImplementation((windowId: string) => windowId === first.id
+      ? Promise.resolve([firstPane]) : secondPanes.promise);
+    api.getAgentDiscovery.mockResolvedValue({
+      descriptors: [{ id: 'codex', label: 'Codex', capabilities: { conversation: true } }],
+      runs: [firstRun, secondRun], health: [],
+    });
+    conversationApi.discoverAgentConversation.mockImplementation(async (run: typeof firstRun) => ({
+      session: { agentId: run.agentId, sessionId: run.sessionId }, run,
+      viewId: run.sessionId, historyVersion: '1',
+      capabilities: { history: true, live: 'poll', send: ['prompt'] },
+    }));
+    conversationApi.readAgentConversationPage.mockImplementation(async (run: typeof firstRun) => (
+      run.sessionId === firstRun.sessionId ? {
+        status: 'ok', page: { sessionId: run.sessionId, viewId: run.sessionId,
+          historyVersion: '1', hasMore: false, items: [] },
+      } : secondPage.promise
+    ));
+    const view = await renderApp();
+    const composer = requiredElement<HTMLTextAreaElement>(view.container, '.cc-text');
+    composer.focus();
+
+    let switchPromise!: Promise<unknown>;
+    act(() => { switchPromise = windowBarProps().onSelectWindow(second); });
+    expect(windowBarProps().currentWindowId).toBe(second.id);
+    expect(view.container.querySelector('.cc-text')).toBe(composer);
+    expect(document.activeElement).toBe(composer);
+
+    await act(async () => {
+      secondPanes.resolve([secondPane]);
+      await switchPromise;
+    });
+    await flush();
+    expect(view.container.querySelector('.cc-text')).toBe(composer);
+    expect(document.activeElement).toBe(composer);
+
+    await act(async () => {
+      secondPage.resolve({
+        status: 'ok', page: { sessionId: secondRun.sessionId, viewId: secondRun.sessionId,
+          historyVersion: '1', hasMore: false, items: [] },
+      });
+      await secondPage.promise;
+    });
+    await flush();
+    expect(view.container.querySelector('.cc-text')).toBe(composer);
+    expect(document.activeElement).toBe(composer);
+  });
 });
 
 describe('App workspace recovery', () => {

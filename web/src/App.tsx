@@ -2061,11 +2061,17 @@ export default function App() {
   } | null>(null);
   const composerRetainedForSurface = lastComposerIdentityRef.current?.surfaceKey === composerSurfaceKey
     && lastComposerIdentityRef.current?.revision === controlsRevision;
+  // A chat window switch clears panes before the replacement Agent is known. Keep the existing Composer
+  // alive through that short topology gap so opening the keyboard immediately cannot fall back to the
+  // terminal dock and then remount a second input when /panes returns.
+  const composerSurfaceTransitionPending = lens === 'chat'
+    && lastComposerIdentityRef.current !== null
+    && (current?.panes.length === 0 || (chatAgent !== null && conversationEnabled));
   // Probe sessionless Codex ownership even while a remembered managed conversation remains visible.
   // Only an explicit activation descriptor proves that the current process is safe to replace.
   const chatLens = lens === 'chat'
     && (conversationEnabled || recoveryLookupUncertain || !!durableConversationRecovery
-      || composerRetainedForSurface);
+      || composerRetainedForSurface || composerSurfaceTransitionPending);
   const conversationActivation = useAgentConversationActivation(
     chatLens && currentAgentDescriptor?.capabilities.conversationActivation === true
       ? activationRun : null,
@@ -2143,8 +2149,11 @@ export default function App() {
     && lastComposerIdentityRef.current?.surfaceKey === composerSurfaceKey
     && lastComposerIdentityRef.current?.revision === controlsRevision
     ? lastComposerIdentityRef.current.identity : null;
+  const retainedComposerIdentityAcrossSurface = !heldByGuide && composerSurfaceTransitionPending
+    ? lastComposerIdentityRef.current?.identity ?? null : null;
   const composerIdentity = normalizedConversationIdentity ?? (chatLens
-    ? (recoveryLookupUncertain ? rememberedConversationIdentity : null) ?? retainedComposerIdentity
+    ? (recoveryLookupUncertain ? rememberedConversationIdentity : null)
+      ?? retainedComposerIdentityAcrossSurface ?? retainedComposerIdentity
     : null);
   const chatLensAvailable = currentAgentDescriptor?.capabilities.conversation === true
     && conversationEnabled
@@ -2159,11 +2168,13 @@ export default function App() {
       || conversationEnabled
       || recoveryLookupUncertain
       || composerRetainedForSurface
+      || composerSurfaceTransitionPending
       || !current?.paneId
     ) return;
     setLens('terminal');
     localStorage.setItem(`tw_lens_${current.paneId}`, 'terminal');
-  }, [composerRetainedForSurface, conversationEnabled, current?.paneId, lens, recoveryLookupUncertain, setLens]);
+  }, [composerRetainedForSurface, composerSurfaceTransitionPending, conversationEnabled,
+    current?.paneId, lens, recoveryLookupUncertain, setLens]);
   const conversationAgents = (agentDiscovery?.descriptors ?? [])
     .filter((descriptor) => descriptor.capabilities.conversation)
     .map((descriptor) => ({
@@ -2320,11 +2331,12 @@ export default function App() {
       : activationRun && currentAgentDescriptor?.capabilities.conversationActivation === true
         ? `conversation-activation\0${activationRun.runId}` : 'chat-unavailable';
   const paneSurfaceOwnerKey = `${currentPaneId ?? 'none'}\0${paneSurfaceIdentity}`;
-  // Conversation controls own the focused textarea. Keep them keyed to the session/window surface so a
-  // topology revision or pane correction can update the transcript without replacing the Composer DOM.
-  // Terminal controls still reset on an intentional pane navigation.
+  // Conversation controls own the focused textarea. Keep one controls fragment mounted while a chat
+  // window changes so its async pane/Agent hydration can update props without replacing the Composer DOM;
+  // the Composer refreshes its draft and identity when the session changes. Terminal controls still reset
+  // on an intentional pane navigation.
   const paneSurfaceControlsKey = chatLens
-    ? `conversation-controls\0${composerSurfaceKey ?? 'none'}`
+    ? 'conversation-controls'
     : `${currentPaneId ?? 'none'}\0${controlsRevision}`;
   const completedEntryRequest = completedChatEntry
     && completedChatEntry.paneId === current?.paneId

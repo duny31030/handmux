@@ -100,4 +100,19 @@ describe('AgentInteractionLayer', () => {
     expect(container.textContent).not.toContain('/private/work');
     expect(container.textContent).not.toContain('interaction_response_failed');
   });
+
+  it('does not steal an already focused conversation composer when an input request arrives', () => {
+    const composer = document.createElement('textarea');
+    composer.className = 'cc-text';
+    document.body.appendChild(composer);
+    composer.focus();
+    render(<AgentInteractionLayer controller={controller([{
+      id: 'interaction-input', runId: 'run-1', resolutionToken: 'resolution-input',
+      type: 'text', intent: 'input_request', prompt: '输入补充信息',
+    }])} />);
+
+    expect(document.activeElement).toBe(composer);
+    expect(document.querySelector('.chat-gate-input')).not.toBe(composer);
+    composer.remove();
+  });
 });

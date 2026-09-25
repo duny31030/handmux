@@ -146,6 +146,8 @@ export default function AgentConversationComposer({
     setSubmitting(false);
     setValue(getConversationDraft(agentId, sessionId));
     setError(null);
+    setStopConfirm(false);
+    setEditOpen(false);
     autoGrow(ref.current);
   }, [key]);
   const capabilities = conversation.descriptor?.capabilities;

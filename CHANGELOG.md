@@ -7,6 +7,7 @@ All notable changes to handmux. Format follows [Keep a Changelog](https://keepac
 ### Fixed
 
 - 修复 Claude 后台 Shell 长时间运行时普通消息一直排队、任务不结束就无法发送的问题。
+- 修复切换 window 后立即打开聊天键盘时，新窗口内容加载完成会把输入框收起的问题。
 
 ## [0.32.0] - 2026-09-24
 
