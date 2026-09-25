@@ -708,8 +708,8 @@ export default function Drawer({
                             role="img"
                             aria-label={VIEW_LABEL[windowInboxTargets[window.id]?.view as InboxView]}
                           />}
-                          <span className="session-window-label">{window.name || window.id}</span>
                           {windowAgents[window.id] && <AgentMark agent={windowAgents[window.id] ?? null} />}
+                          <span className="session-window-label">{window.name || window.id}</span>
                           {window.panes > 1 && <button
                             type="button"
                             className={`session-window-pane-trigger${panePickerOpen ? ' is-open' : ''}`}

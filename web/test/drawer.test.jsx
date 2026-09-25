@@ -105,7 +105,8 @@ describe('Drawer (bound sessions)', () => {
     const dot = row.querySelector('.session-window-inbox-dot.needs');
     expect(dot?.getAttribute('aria-label')).toBe('需要你');
     expect(row.querySelector('.inbox-chip')).toBeNull();
-    expect(dot?.nextElementSibling).toBe(row.querySelector('.session-window-label'));
+    expect(dot?.nextElementSibling).toBe(row.querySelector('.agent-mark'));
+    expect(row.querySelector('.agent-mark')?.nextElementSibling).toBe(row.querySelector('.session-window-label'));
     const singlePane = container.querySelector('[data-window-id="@2"]');
     expect(singlePane.querySelector('.session-window-pane-value')).toBeNull();
     expect(singlePane.querySelector('.session-window-inbox-dot.working')?.getAttribute('aria-label')).toBe('进行中');
