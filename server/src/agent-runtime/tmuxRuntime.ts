@@ -100,6 +100,24 @@ interface ForegroundRow {
   command: string;
 }
 
+// Process identity is display/navigation evidence. It does not authorize a send or a destructive
+// operation; those paths re-check the live process generation. Keep the evidence briefly so a pane poll,
+// the runtime reconciler, and ambiguous-command verifiers do not all pay for the same ps/lsof work.
+const PROCESS_EVIDENCE_CACHE_MS = 2_000;
+const PROCESS_EVIDENCE_INFLIGHT_MS = 250;
+const MAX_PROCESS_EVIDENCE_CACHE = 512;
+
+interface ForegroundRowsCache {
+  rows?: ForegroundRow[];
+  expiresAt: number;
+  promise?: Promise<ForegroundRow[]>;
+}
+
+interface StartedAtInFlight {
+  promise: Promise<number | undefined>;
+  expiresAt: number;
+}
+
 const AMBIGUOUS_LAUNCHERS = new Set(['node', 'python', 'python3', 'java']);
 
 function foregroundRows(value: unknown): ForegroundRow[] {
@@ -191,14 +209,61 @@ export function createLocalAgentProcessContext({
   run?: RunCommand;
 } = {}): ProcessContext {
   const PS_FORMAT = 'pid=,ppid=,stat=,etime=,tty=,command=';
+  const rowsCache = new Map<string, ForegroundRowsCache>();
+  const executableCache = new Map<string, { value: string; expiresAt: number }>();
+  const startedAtInFlight = new Map<number, StartedAtInFlight>();
+  const prune = <T extends { expiresAt: number }>(cache: Map<string, T>): void => {
+    if (cache.size <= MAX_PROCESS_EVIDENCE_CACHE) return;
+    const now = Date.now();
+    for (const [key, entry] of cache) {
+      if (entry.expiresAt <= now || cache.size > MAX_PROCESS_EVIDENCE_CACHE) cache.delete(key);
+      if (cache.size <= MAX_PROCESS_EVIDENCE_CACHE) break;
+    }
+  };
+  const startedAt = (pid: number): Promise<number | undefined> => {
+    const pending = startedAtInFlight.get(pid);
+    const now = Date.now();
+    if (pending && pending.expiresAt > now) return pending.promise;
+    const promise = processStartedAt(run, pid);
+    const entry: StartedAtInFlight = { promise, expiresAt: now + PROCESS_EVIDENCE_INFLIGHT_MS };
+    void promise.then(() => {
+      if (startedAtInFlight.get(pid) === entry) startedAtInFlight.delete(pid);
+    }, () => {
+      if (startedAtInFlight.get(pid) === entry) startedAtInFlight.delete(pid);
+    });
+    startedAtInFlight.set(pid, entry);
+    return promise;
+  };
   // One `ps` read, shared by both evidence methods below. The full-system scan is only the fallback for a
   // platform whose targeted query returns nothing; rows are always re-filtered to the pane's own tty.
   const foregroundGroup = async (pane: LivePane): Promise<{ tty: string; rows: ForegroundRow[] }> => {
     const tty = normTty(pane.tty);
     if (!tty) return { tty: '', rows: [] };
-    let output = await run('ps', ['-t', tty, '-o', PS_FORMAT]);
-    if (!String(output).trim()) output = await run('ps', ['-Ao', PS_FORMAT]);
-    return { tty, rows: foregroundRows(output).filter((row) => row.tty === tty) };
+    const cached = rowsCache.get(tty);
+    const now = Date.now();
+    if (cached?.rows && cached.expiresAt > now) return { tty, rows: cached.rows };
+    if (cached?.promise && cached.expiresAt > now) return { tty, rows: await cached.promise };
+    const promise = (async (): Promise<ForegroundRow[]> => {
+      let output = await run('ps', ['-t', tty, '-o', PS_FORMAT]);
+      if (!String(output).trim()) output = await run('ps', ['-Ao', PS_FORMAT]);
+      return foregroundRows(output).filter((row) => row.tty === tty);
+    })();
+    const entry: ForegroundRowsCache = {
+      expiresAt: Date.now() + PROCESS_EVIDENCE_INFLIGHT_MS,
+      promise,
+    };
+    rowsCache.set(tty, entry);
+    try {
+      const rows = await promise;
+      if (rowsCache.get(tty) === entry) {
+        rowsCache.set(tty, { rows, expiresAt: Date.now() + PROCESS_EVIDENCE_CACHE_MS });
+      }
+      prune(rowsCache);
+      return { tty, rows };
+    } catch (error) {
+      if (rowsCache.get(tty) === entry) rowsCache.delete(tty);
+      throw error;
+    }
   };
 
   return {
@@ -207,31 +272,48 @@ export function createLocalAgentProcessContext({
       if (!tty) return null;
       const row = foregroundLeaf(rows, tty, pane.currentCommand);
       if (!row) return null;
-      const startedAt = await processStartedAt(run, row.pid);
-      const executable = await executablePath(run, row.pid);
-      return {
+      const processStart = await startedAt(row.pid);
+      let executable = '';
+      if (processStart !== undefined) {
+        const executableKey = `${row.pid}\0${processStart}`;
+        const cachedExecutable = executableCache.get(executableKey);
+        if (cachedExecutable && cachedExecutable.expiresAt > Date.now()) executable = cachedExecutable.value;
+        else {
+          executable = await executablePath(run, row.pid);
+          executableCache.set(executableKey, {
+            value: executable,
+            expiresAt: Date.now() + PROCESS_EVIDENCE_CACHE_MS,
+          });
+          prune(executableCache);
+        }
+      } else executable = await executablePath(run, row.pid);
+      const value: ForegroundProcessIdentity = {
         pid: row.pid,
-        ...(startedAt === undefined ? {} : { startedAt }),
+        ...(processStart === undefined ? {} : { startedAt: processStart }),
         tty: pane.tty ?? `/dev/${tty}`,
         ...(executable ? { executable } : {}),
         ...(row.command ? { commandLine: row.command } : {}),
       };
+      return { ...value };
     },
     async inspectForegroundGroup(pane: LivePane): Promise<readonly ForegroundProcessIdentity[]> {
+      const tty = normTty(pane.tty);
+      if (!tty) return [];
       const { rows } = await foregroundGroup(pane);
       // Start time is resolved per row: a returned row can become a lease anchor, and a pid without a
       // process generation is not an identity. Executable is deliberately NOT resolved — one lsof per row
       // is expensive, and the adapters that need the group match on the command line.
-      return Promise.all(rows.map(async (row) => {
-        const startedAt = await processStartedAt(run, row.pid);
+      const value = await Promise.all(rows.map(async (row) => {
+        const processStart = await startedAt(row.pid);
         return {
           pid: row.pid,
           ppid: row.ppid,
           tty: pane.tty ?? `/dev/${row.tty}`,
-          ...(startedAt === undefined ? {} : { startedAt }),
+          ...(processStart === undefined ? {} : { startedAt: processStart }),
           ...(row.command ? { commandLine: row.command } : {}),
         };
       }));
+      return value.map((entry) => ({ ...entry }));
     },
     // One `ps -p`, and deliberately no executable lookup: a lease only needs to know that the pid it was
     // attached to is still the same process generation.

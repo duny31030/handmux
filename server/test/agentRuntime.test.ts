@@ -1014,6 +1014,29 @@ describe('AgentRuntime composition root', () => {
     expect(second.process.verify).toHaveBeenCalledOnce();
   });
 
+  it('reuses an ambiguous pane identity for the short UI projection window', async () => {
+    const verify = vi.fn(async () => true);
+    const probe: AgentAdapter = {
+      adapterApiVersion: 1,
+      id: 'probe',
+      label: 'Probe',
+      process: { commands: ['probe'], ambiguousCommands: ['node'], verify },
+      capabilities: {},
+    };
+    const runtime = new AgentRuntime({
+      adapters: [probe],
+      panes: new TestPanes([]),
+      process: { inspectForeground: async () => null },
+      stateDirectory: directory(),
+      authToken: AUTH_TOKEN,
+    });
+    runtimes.push(runtime);
+
+    await expect(runtime.identifyPanes([pane('node')])).resolves.toEqual({ '%1': 'probe' });
+    await expect(runtime.identifyPanes([pane('node')])).resolves.toEqual({ '%1': 'probe' });
+    expect(verify).toHaveBeenCalledOnce();
+  });
+
   it('preserves a live run across an unknown process probe and revokes only on confirmed mismatch', async () => {
     const panes = new TestPanes([pane()]);
     let foreground: ForegroundProcessIdentity | Error | null = {

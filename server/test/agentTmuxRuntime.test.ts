@@ -72,6 +72,32 @@ describe('Tmux Agent Runtime context', () => {
     });
   });
 
+  it('shares short-lived process evidence across foreground and group probes', async () => {
+    const run = vi.fn(async (command: string, args: string[]) => {
+      if (command === 'ps') {
+        if (args[0] === '-p') return 'Tue Aug 12 04:00:00 2026\n';
+        return ' 101 90 S+ 00:05 ttys001 node /opt/codex/bin/codex\n';
+      }
+      if (command === 'lsof') return 'p101\nftxt\nn/opt/codex/bin/codex\n';
+      return '';
+    });
+    const context = createLocalAgentProcessContext({ run });
+    const pane = {
+      paneId: '%1', sessionName: 'main', windowId: '@1', windowName: 'agent',
+      currentCommand: 'node', tty: '/dev/ttys001',
+    };
+
+    await Promise.all([context.inspectForeground(pane), context.inspectForegroundGroup!(pane)]);
+    expect(run.mock.calls.filter(([command, args]) => command === 'ps' && args[0] === '-t')).toHaveLength(1);
+
+    const calls = run.mock.calls.length;
+    await context.inspectForeground(pane);
+    await context.inspectForegroundGroup!(pane);
+    expect(run.mock.calls.filter(([command, args]) => command === 'ps' && args[0] === '-t')).toHaveLength(1);
+    expect(run.mock.calls.filter(([command]) => command === 'lsof')).toHaveLength(1);
+    expect(run.mock.calls.length).toBeGreaterThan(calls);
+  });
+
   it('selects the deepest foreground leaf instead of a managed Node wrapper', async () => {
     const run = vi.fn(async (command: string, args: string[]) => {
       if (command === 'ps') {

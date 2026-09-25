@@ -64,6 +64,9 @@ import type {
 } from './run.js';
 
 const DEFAULT_ACTIVATION_TIMEOUT_MS = 5_000;
+// Pane navigation tolerates a short stale window; send/control paths do not use this projection.
+const PANE_IDENTITY_CACHE_MS = 2_000;
+const MAX_PANE_IDENTITY_CACHE = 512;
 const TOKEN_RE = /^[A-Za-z0-9_-]{32,1024}$/;
 
 interface StoredBridgeCredential {
@@ -82,6 +85,11 @@ interface AdapterLifecycle {
   adapter: AgentAdapter;
   abort: AbortController;
   cleanup: Array<() => void | Promise<void>>;
+}
+
+interface PaneIdentityCacheEntry {
+  value: string | null;
+  expiresAt: number;
 }
 
 interface ReconcileWaiter {
@@ -361,6 +369,9 @@ export class AgentRuntime {
   readonly #tracked = new Map<string, TrackedRun>();
   readonly #authorizationQueues = new Map<string, Promise<void>>();
   readonly #health = new Map<string, AgentRuntimeHealthEntry>();
+  // This cache feeds the UI pane projection only. Runtime attachment and command authorization always
+  // perform their own live process-generation checks.
+  readonly #paneIdentityCache = new Map<string, PaneIdentityCacheEntry>();
   readonly #transport: LocalAgentBridgeTransportServer;
   #unsubscribePanes: (() => void) | undefined;
   #pendingReconcile: PendingReconcile | undefined;
@@ -763,21 +774,43 @@ export class AgentRuntime {
     const resolved = await Promise.all(panes.map(async (
       pane,
     ): Promise<[string, string | null] | null> => {
+      const hasExactOwner = activeAdapters.some((adapter) => adapter.process.commands.includes(pane.currentCommand));
+      const cacheKey = `${pane.paneId}\0${pane.tty ?? ''}\0${pane.currentCommand}`;
+      if (!hasExactOwner) {
+        const cached = this.#paneIdentityCache.get(cacheKey);
+        if (cached && cached.expiresAt > Date.now()) return [pane.paneId, cached.value];
+      }
       const context = this.#processContext(pane);
       const identity = await resolveAgentIdentity(pane, activeAdapters, context, {
         verifyTimeoutMs: this.#verifyTimeoutMs,
       });
-      if (identity.kind === 'matched') return [pane.paneId, identity.adapter.id];
+      const cache = (value: string | null): [string, string | null] => {
+        if (!hasExactOwner) {
+          this.#paneIdentityCache.set(cacheKey, {
+            value,
+            expiresAt: Date.now() + PANE_IDENTITY_CACHE_MS,
+          });
+          if (this.#paneIdentityCache.size > MAX_PANE_IDENTITY_CACHE) {
+            const now = Date.now();
+            for (const [key, entry] of this.#paneIdentityCache) {
+              if (entry.expiresAt <= now) this.#paneIdentityCache.delete(key);
+              if (this.#paneIdentityCache.size <= MAX_PANE_IDENTITY_CACHE) break;
+            }
+          }
+        }
+        return [pane.paneId, value];
+      };
+      if (identity.kind === 'matched') return cache(identity.adapter.id);
       if (identity.kind === 'conflict') {
         this.#logger.warn('Agent pane identity conflict', {
           paneId: pane.paneId,
           candidateIds: identity.candidateIds,
         });
-        return [pane.paneId, null];
+        return cache(null);
       }
       // Unknown means the verifier failed or timed out. Omitting the pane preserves the last confirmed
       // owner in consumers; only an explicit `none` is authoritative evidence that the Agent exited.
-      return identity.kind === 'none' ? [pane.paneId, null] : null;
+      return identity.kind === 'none' ? cache(null) : null;
     }));
     return Object.fromEntries(resolved.filter(
       (entry): entry is [string, string | null] => entry !== null,
