@@ -26,7 +26,7 @@
          brand, not a blank dark screen. main.tsx calls window.__hideBootSplash() once React has painted.
          Until then it must remain visible: a slow bundle should never expose the still-empty app root. -->
     <style>
-      html, body { margin: 0; background: #1a1b1e; } /* opaque dark from frame one — no wallpaper showing through */
+      html, body { margin: 0; background: #1a1b1e; color-scheme: dark; color-scheme: only dark; } /* opaque dark from frame one — no wallpaper showing through */
       #boot-splash { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column;
         align-items: center; justify-content: center; gap: 22px; background: #1a1b1e;
         transition: opacity .45s ease; }

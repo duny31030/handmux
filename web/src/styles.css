@@ -1,6 +1,10 @@
 * { box-sizing: border-box; }
 :root {
+  /* The app owns its dark palette. `only` opts out of Chromium/Android's
+     heuristic forced-dark transform, which otherwise re-inverts already-dark
+     surfaces and can turn text, raster marks, and small icons invisible. */
   color-scheme: dark;
+  color-scheme: only dark;
   /* iOS system accent tokens — one blue / green / red across the whole app */
   --blue: #0a84ff;
   --blue-press: #0a6fd8;
@@ -63,7 +67,13 @@
 }
 /* overscroll-behavior: none stops the browser's pull-to-refresh / bounce from firing
    when you swipe inside the terminal. */
-html, body, #root { height: 100%; margin: 0; overscroll-behavior: none; }
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  overscroll-behavior: none;
+  color-scheme: dark;
+  color-scheme: only dark;
+}
 #overlay-root { position: relative; }
 .overlay-layer { --overlay-keyboard-inset: 0px; }
 body { font-family: -apple-system, system-ui, sans-serif; background: #1a1b1e; color: #e6e6e6; }
@@ -4097,9 +4107,12 @@ button.cmd-text { background: none; border: none; text-align: left; }
 .chat-session-notice { display: flex; flex-direction: column; gap: 3px; }
 .chat-session-notice strong { font-size: 13px; font-weight: 650; }
 .chat-session-notice span { color: inherit; opacity: 0.82; }
+/* Keep the dark-tone warning contrast when the device is in dark mode. The
+   light conversation tone must retain its own dark text even when the OS is
+   dark; otherwise this media query makes it low-contrast on cream surfaces. */
 @media (prefers-color-scheme: dark) {
-  .chat-turn-error { color: #ffb4ab; background: rgba(255, 180, 171, 0.12); }
-  .chat-turn-notice.is-warning { color: #ffd180; background: rgba(255, 209, 128, 0.10); }
+  .app:not([data-chat-tone="light"]) .chat-turn-error { color: #ffb4ab; background: rgba(255, 180, 171, 0.12); }
+  .app:not([data-chat-tone="light"]) .chat-turn-notice.is-warning { color: #ffd180; background: rgba(255, 209, 128, 0.10); }
 }
 
 /* Thinking — muted, smaller, readable but visually de-emphasized vs. real bubbles. */
