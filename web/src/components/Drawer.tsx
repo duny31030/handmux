@@ -710,18 +710,20 @@ export default function Drawer({
                           />}
                           {windowAgents[window.id] && <AgentMark agent={windowAgents[window.id] ?? null} />}
                           <span className="session-window-label">{window.name || window.id}</span>
-                          {window.panes > 1 && <button
-                            type="button"
-                            className={`session-window-pane-trigger${panePickerOpen ? ' is-open' : ''}`}
-                            ref={(element) => { paneTriggerRefs.current[window.id] = element; }}
-                            aria-expanded={panePickerOpen}
-                            aria-label={`${window.name || window.id} ${t('drawer.paneSwitcher')}`}
-                            onClick={(event) => togglePanePicker(event, window)}
-                            onKeyDown={(event) => event.stopPropagation()}
-                          >
-                            <span className="session-window-pane-value">{paneValue || paneSeq(0)}</span><ChevronDownIcon />
-                          </button>}
-                          <button type="button" className="session-window-menu" aria-label={`${window.name || window.id} ${t('common.more')}`} onClick={(event) => { event.stopPropagation(); onManageWindow(name, window); }}><MoreHorizontalIcon /></button>
+                          <span className="session-window-actions">
+                            {window.panes > 1 && <button
+                              type="button"
+                              className={`session-window-pane-trigger${panePickerOpen ? ' is-open' : ''}`}
+                              ref={(element) => { paneTriggerRefs.current[window.id] = element; }}
+                              aria-expanded={panePickerOpen}
+                              aria-label={`${window.name || window.id} ${t('drawer.paneSwitcher')}`}
+                              onClick={(event) => togglePanePicker(event, window)}
+                              onKeyDown={(event) => event.stopPropagation()}
+                            >
+                              <span className="session-window-pane-value">{paneValue || paneSeq(0)}</span><ChevronDownIcon />
+                            </button>}
+                            <button type="button" className="session-window-menu" aria-label={`${window.name || window.id} ${t('common.more')}`} onClick={(event) => { event.stopPropagation(); onManageWindow(name, window); }}><MoreHorizontalIcon /></button>
+                          </span>
                         </div>
                       </div>
                     );
