@@ -1158,7 +1158,7 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .session-window-row[aria-current="page"] .session-window-pane-trigger.is-open { background:rgba(255,255,255,.16); }
 .session-window-pane-trigger.is-open:active { background:rgba(255,255,255,.18); }
 .session-window-menu { flex:none; width:40px; height:40px; margin-left:auto; padding:0; display:grid; place-items:center; border:0; border-radius:0; background:transparent !important; box-shadow:none !important; color:rgba(235,235,245,.88); -webkit-tap-highlight-color:transparent; }
-.session-window-pane-trigger + .session-window-menu { margin-left:0; }
+.session-window-row:has(.session-window-pane-trigger) .session-window-menu { margin-left:0 !important; }
 .session-window-pane-trigger + .session-window-menu svg { transform:translateX(-12px); }
 .session-window-menu svg { width:20px; height:20px; }
 .session-window-menu:active { background:transparent !important; color:#fff; }
