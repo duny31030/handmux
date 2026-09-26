@@ -7,9 +7,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { t } from '../i18n';
 import { relTime, VIEW_LABEL } from '../inbox.js';
-import type { InboxTarget, InboxView } from '../inbox.js';
+import type { InboxView } from '../inbox.js';
 import WorkspaceRecoveryCard from './WorkspaceRecoveryCard.jsx';
-import { getPanes, getSessions, getWindowsForSessions } from '../api.js';
+import { getPanes, getSessionTopology } from '../api.js';
+import { getLastPane } from '../storage.js';
 import type { TmuxPane, TmuxSession, TmuxWindow } from '../api.js';
 import type { MouseEvent } from 'react';
 import type { WorkspaceRecoveryPlan, WorkspaceRestoreOperation } from '../workspaceRecovery.js';
@@ -20,10 +21,24 @@ import { AgentMark, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon, CommandIcon,
 const EXPANDED_SESSIONS_KEY = 'handmux.drawer.expanded-sessions';
 const EMPTY_WINDOW_AGENTS: Readonly<Record<string, string | null | undefined>> = {};
 const EMPTY_SESSION_INBOX: Readonly<Record<string, InboxView | null | undefined>> = {};
-const EMPTY_WINDOW_INBOX: Readonly<Record<string, InboxTarget | null | undefined>> = {};
 const EMPTY_PANES: readonly TmuxPane[] = [];
 const CIRCLED_PANES = '①②③④⑤⑥⑦⑧⑨';
 const paneSeq = (index: number): string => CIRCLED_PANES[index] ?? String(index + 1);
+const INBOX_VIEW_RANK: Record<InboxView, number> = { working: 1, done: 2, needs: 3, error: 4 };
+
+function nonDefaultPaneInboxView(
+  panes: readonly TmuxPane[],
+  defaultPaneId: string | null | undefined,
+  paneInboxViews: Readonly<Record<string, InboxView | null | undefined>>,
+): InboxView | null {
+  let best: InboxView | null = null;
+  for (const pane of panes) {
+    if (pane.id === defaultPaneId) continue;
+    const view = paneInboxViews[pane.id];
+    if (view && (!best || INBOX_VIEW_RANK[view] > INBOX_VIEW_RANK[best])) best = view;
+  }
+  return best;
+}
 
 function hasHorizontalScrollAhead(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
@@ -125,7 +140,6 @@ interface DrawerProps {
   sessionInboxViews?: Readonly<Record<string, InboxView | null | undefined>>;
   paneInboxViews?: Readonly<Record<string, InboxView | null | undefined>>;
   windowAgents?: Readonly<Record<string, string | null | undefined>>;
-  windowInboxTargets?: Readonly<Record<string, InboxTarget | null | undefined>>;
 }
 
 /**
@@ -139,6 +153,10 @@ export interface DrawerSelection {
   window: TmuxWindow;
   /** Optional pane target supplied by Inbox deep-links. Drawer rows do not need this. */
   paneId?: string | null;
+  /** Structural pane data already included in the Drawer topology snapshot. */
+  panes?: TmuxPane[];
+  /** True when panes came from the identity-enriched /panes route. */
+  panesAreEnriched?: boolean;
 }
 
 export default function Drawer({
@@ -147,11 +165,12 @@ export default function Drawer({
   recoveryPlan = null, recoveryOperation = null, onOpenRecovery = () => {},
   projectTaskBeta = false, onSwitchProject = () => {}, onSwitchSession = () => {}, onOpenSettings = () => {}, onNewWindow = () => {}, onManageWindow = () => {}, onRenameSession = () => {}, onDeleteSession = () => {}, onMoveSession = () => {}, windowOrderVersion = 0, rootView = 'session',
   revealRevision = 0, sessionInboxViews = EMPTY_SESSION_INBOX,
-  windowAgents = EMPTY_WINDOW_AGENTS, paneInboxViews = EMPTY_SESSION_INBOX, windowInboxTargets = EMPTY_WINDOW_INBOX,
+  windowAgents = EMPTY_WINDOW_AGENTS, paneInboxViews = EMPTY_SESSION_INBOX,
 }: DrawerProps) {
   const [orphOpen, setOrphOpen] = useState(false);
   const [sessionWindows, setSessionWindows] = useState<Record<string, TmuxWindow[]>>({});
   const [windowPanes, setWindowPanes] = useState<Record<string, TmuxPane[]>>({});
+  const paneDetailsLoadedRef = useRef(new Set<string>());
   const [openPaneWindow, setOpenPaneWindow] = useState<string | null>(null);
   const [paneLoadingWindow, setPaneLoadingWindow] = useState<string | null>(null);
   const [paneErrorWindow, setPaneErrorWindow] = useState<string | null>(null);
@@ -465,21 +484,35 @@ export default function Drawer({
         const orderChanged = cached.orderVersion !== windowOrderVersion;
         const sessionsStale = !cached.sessionsAt || now - cached.sessionsAt >= 5000
           || names.some((name) => !cached.ids[name]) || orderChanged;
-        const ids = sessionsStale
-          ? Object.fromEntries((await getSessions()).map((session) => [session.name, session.id]))
-          : cached.ids;
-        if (!alive) return;
-        // A session name may have been deleted and recreated with a different tmux ID.
-        const windows = Object.fromEntries(names.filter((name) => ids[name] && ids[name] === cached.ids[name] && cached.windows[name])
+        let ids = cached.ids;
+        let windows = Object.fromEntries(names.filter((name) => cached.ids[name] && cached.windows[name])
           .map((name) => [name, cached.windows[name]!]));
-        const fetchedAt = Object.fromEntries(names.filter((name) => windows[name]).map((name) => [name, cached.fetchedAt[name]!]));
-        const targets = expanded.filter((name) => ids[name] && (!windows[name] || now - (fetchedAt[name] || 0) >= 5000 || orderChanged));
-        if (targets.length) {
-          const rows = await getWindowsForSessions(targets.map((name) => ids[name]!));
+        let fetchedAt = Object.fromEntries(names.filter((name) => windows[name])
+          .map((name) => [name, cached.fetchedAt[name]!]));
+        const targets = expanded.filter((name) => ids[name]
+          && (!windows[name] || now - (fetchedAt[name] || 0) >= 5000 || orderChanged));
+        if (sessionsStale || targets.length) {
+          const topology = await getSessionTopology();
           if (!alive) return;
-          for (const name of targets) {
-            windows[name] = rows[ids[name]!] || [];
-            fetchedAt[name] = Date.now();
+          ids = Object.fromEntries(topology.flatMap(({ session }) => (
+            names.includes(session.name) ? [[session.name, session.id] as const] : []
+          )));
+          windows = Object.fromEntries(names.flatMap((name) => {
+            const row = topology.find((candidate) => candidate.session.name === name);
+            return row ? [[name, row.windows] as const] : [];
+          }));
+          const fetchedNow = Date.now();
+          fetchedAt = Object.fromEntries(names.flatMap((name) => (
+            windows[name] ? [[name, fetchedNow] as const] : []
+          )));
+          for (const row of topology) {
+            for (const window of row.windows) {
+              if (window.paneList) {
+                setWindowPanes((current) => (
+                  current[window.id] ? current : { ...current, [window.id]: window.paneList! }
+                ));
+              }
+            }
           }
         }
         // Publish one complete outline. Never reveal parent rows while the initial
@@ -499,12 +532,23 @@ export default function Drawer({
   };
   const paneRequestRef = useRef(0);
   const loadWindowPanes = (window: TmuxWindow): void => {
+    const cached = windowPanes[window.id];
+    // The topology snapshot intentionally omits Agent identity. Reopen the full
+    // pane route only when the picker needs those enriched rows. An enriched row
+    // may omit `agent` when identity is currently unknown, so track completion
+    // separately instead of inspecting individual fields.
+    if (cached && paneDetailsLoadedRef.current.has(window.id)) return;
+    if (cached?.length && cached.every((pane) => Object.hasOwn(pane, 'agent'))) {
+      paneDetailsLoadedRef.current.add(window.id);
+      return;
+    }
     setPaneErrorWindow(null);
     const request = ++paneRequestRef.current;
     setPaneLoadingWindow(window.id);
     void getPanes(window.id).then((panes) => {
       if (paneRequestRef.current !== request) return;
       setWindowPanes((current) => ({ ...current, [window.id]: panes }));
+      paneDetailsLoadedRef.current.add(window.id);
       setPaneLoadingWindow(null);
     }).catch(() => {
       if (paneRequestRef.current !== request) return;
@@ -669,9 +713,14 @@ export default function Drawer({
                     const windowIsPending = pendingWindow?.sessionName === name && pendingWindow.windowId === window.id;
                     const panePickerOpen = openPaneWindow === window.id;
                     const panes = windowPanes[window.id] || [];
-                    const paneTargetId = windowIsCurrent ? currentPaneId : window.activePaneId;
+                    const rememberedPaneId = getLastPane(window.id);
+                    const paneTargetId = windowIsCurrent ? currentPaneId
+                      : (rememberedPaneId && panes.some((pane) => pane.id === rememberedPaneId)
+                        ? rememberedPaneId : window.activePaneId);
                     const paneIndex = Math.max(0, panes.findIndex((pane) => pane.id === paneTargetId));
                     const paneValue = paneSeq(paneIndex);
+                    const paneInboxView = window.panes > 1
+                      ? nonDefaultPaneInboxView(panes, paneTargetId, paneInboxViews) : null;
                     return (
                       <div key={window.id} className="session-window-entry">
                         <div
@@ -684,30 +733,25 @@ export default function Drawer({
                           onClick={() => {
                             const sessionId = topologyCache.current.ids[name];
                             const windows = sessionWindows[name] || [];
-                            const inboxTarget = windowInboxTargets[window.id];
                             if (!sessionId) return;
                             setPendingWindow({ sessionName: name, windowId: window.id });
                             onSelectSession({ session: { id: sessionId, name }, windows, window,
-                              ...(inboxTarget?.paneId ? { paneId: inboxTarget.paneId } : {}) });
+                              ...(paneTargetId ? { paneId: paneTargetId } : {}),
+                              ...(panes.length ? { panes } : {}) });
                           }}
                           onKeyDown={(event) => {
                             if (event.key === 'Enter' || event.key === ' ') {
                               event.preventDefault();
                               const sessionId = topologyCache.current.ids[name];
                               const windows = sessionWindows[name] || [];
-                              const inboxTarget = windowInboxTargets[window.id];
                               if (!sessionId) return;
                               setPendingWindow({ sessionName: name, windowId: window.id });
                               onSelectSession({ session: { id: sessionId, name }, windows, window,
-                                ...(inboxTarget?.paneId ? { paneId: inboxTarget.paneId } : {}) });
+                                ...(paneTargetId ? { paneId: paneTargetId } : {}),
+                                ...(panes.length ? { panes } : {}) });
                             }
                           }}
                         >
-                          {windowInboxTargets[window.id] && <span
-                            className={`session-window-inbox-dot ${windowInboxTargets[window.id]?.view}`}
-                            role="img"
-                            aria-label={VIEW_LABEL[windowInboxTargets[window.id]?.view as InboxView]}
-                          />}
                           {windowAgents[window.id] && <AgentMark agent={windowAgents[window.id] ?? null} />}
                           <span className="session-window-label">{window.name || window.id}</span>
                           <span className="session-window-actions">
@@ -720,6 +764,11 @@ export default function Drawer({
                               onClick={(event) => togglePanePicker(event, window)}
                               onKeyDown={(event) => event.stopPropagation()}
                             >
+                              {paneInboxView && <span
+                                className={`session-window-pane-inbox-dot ${paneInboxView}`}
+                                role="img"
+                                aria-label={VIEW_LABEL[paneInboxView]}
+                              />}
                               <span className="session-window-pane-value">{paneValue || paneSeq(0)}</span><ChevronDownIcon />
                             </button>}
                             <button type="button" className="session-window-menu" aria-label={`${window.name || window.id} ${t('common.more')}`} onClick={(event) => { event.stopPropagation(); onManageWindow(name, window); }}><MoreHorizontalIcon /></button>
@@ -822,7 +871,8 @@ export default function Drawer({
                 if (!sessionId) return;
                 setPendingWindow({ sessionName: paneMenuSessionName!, windowId: paneMenuWindow!.id });
                 setOpenPaneWindow(null);
-                onSelectSession({ session: { id: sessionId, name: paneMenuSessionName! }, windows, window: paneMenuWindow!, paneId: pane.id });
+                onSelectSession({ session: { id: sessionId, name: paneMenuSessionName! }, windows, window: paneMenuWindow!, paneId: pane.id,
+                  panes: windowPanes[paneMenuWindow!.id] || [], panesAreEnriched: true });
               }}
             >
               <span className="dd-option-label">

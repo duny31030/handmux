@@ -16,6 +16,7 @@ export interface TmuxWindow {
 }
 export interface TmuxPane {
   id: string;
+  index: number;
   active: boolean;
   width: number;
   height: number;
@@ -108,10 +109,17 @@ export async function listWindows(sessionId: string): Promise<TmuxWindow[]> {
 }
 
 export async function listPanes(windowId: string): Promise<TmuxPane[]> {
-  const out = await runTmux(['list-panes', '-t', windowId, '-F', tmuxFormat(['pane_id', 'pane_active', 'pane_width', 'pane_height', 'pane_current_command', 'pane_current_path', 'pane_left', 'pane_top', 'pane_tty'])]);
-  return parseTmuxRows(out, 9, 'pane').map(([id, active, width, height, command, cwd, left, top, tty]) => {
-    return { id, active: active === '1', width: Number(width), height: Number(height), command, cwd, left: Number(left), top: Number(top), tty };
+  const out = await runTmux(['list-panes', '-t', windowId, '-F', tmuxFormat(['pane_id', 'pane_index', 'pane_active', 'pane_width', 'pane_height', 'pane_current_command', 'pane_current_path', 'pane_left', 'pane_top', 'pane_tty'])]);
+  return parseTmuxRows(out, 10, 'pane').map(([id, index, active, width, height, command, cwd, left, top, tty]) => {
+    return { id, index: Number(index), active: active === '1', width: Number(width), height: Number(height), command, cwd, left: Number(left), top: Number(top), tty };
   });
+}
+
+export async function listAllPanes(): Promise<Array<TmuxPane & { windowId: string }>> {
+  const out = await runTmux(['list-panes', '-a', '-F', tmuxFormat(['window_id', 'pane_id', 'pane_index', 'pane_active', 'pane_width', 'pane_height', 'pane_current_command', 'pane_current_path', 'pane_left', 'pane_top', 'pane_tty'])]);
+  return parseTmuxRows(out, 11, 'pane').map(([windowId, id, index, active, width, height, command, cwd, left, top, tty]) => ({
+    windowId, id, index: Number(index), active: active === '1', width: Number(width), height: Number(height), command, cwd, left: Number(left), top: Number(top), tty,
+  }));
 }
 
 // All live pane ids across every session — used to reconcile the in-memory Claude paneState against

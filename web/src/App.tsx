@@ -29,7 +29,7 @@ import {
 } from './api.js';
 import { runSplitPane, runClosePane } from './paneActions.js';
 import BrowserSheet from './components/BrowserSheet.jsx';
-import { applyTerminalReads, inboxRows, topView, windowInboxTargets, sessionInboxViews, paneInboxViews, maxTs, visibleCurrentPaneState } from './inbox.js';
+import { applyTerminalReads, inboxRows, topView, sessionInboxViews, paneInboxViews, maxTs, visibleCurrentPaneState } from './inbox.js';
 import type { PaneInboxState } from './inbox.js';
 import { moveTarget } from './windowOrder.js';
 import { reportBound, clearPaneNotification, getNotifications, deleteNotification } from './push.js';
@@ -372,6 +372,7 @@ export default function App() {
   const currentRef = useRef<CurrentWorkspace | null>(null); currentRef.current = current;
   const windowSwitchRef = useRef(0); // only the newest async pane lookup may finish a window switch
   const sessionSelectionRef = useRef(0);
+  const prefetchedPanesRef = useRef(new Map<string, HostPane[]>());
   const topologyPollKeyRef = useRef<string | null>(null);
   const topologyRecoveryRef = useRef<Promise<void> | null>(null);
   const [booting, setBooting] = useState(true);
@@ -1278,12 +1279,17 @@ export default function App() {
     // Inbox deep-links can provide the exact pane that produced the notification. Prefer it over
     // the window's active pane so the shared selector lands on the same pane immediately; the
     // background topology poll will replace it if that pane has since disappeared.
-    const paneIdHint = selection.paneId || selectedWindow.activePaneId || '';
+    const prefetchedPanes = selection.panes?.map((pane) => ({ ...pane })) as HostPane[] | undefined;
+    const paneIdHint = selection.paneId || selectedWindow.activePaneId || prefetchedPanes?.[0]?.id || '';
+    if (prefetchedPanes?.length && (selection.panesAreEnriched
+      || prefetchedPanes.every((pane) => Object.hasOwn(pane, 'agent')))) {
+      prefetchedPanesRef.current.set(selectedWindow.id, prefetchedPanes);
+    }
     ++windowSwitchRef.current;
     // Commit the new session and window before asking the server for panes. This transfers the
     // Drawer highlight and updates the title/window bar while the pane surface catches up.
     setControlsRevision((revision) => revision + 1);
-    setCurrent({ session, windows, window: selectedWindow, panes: [], paneId: paneIdHint });
+    setCurrent({ session, windows, window: selectedWindow, panes: prefetchedPanes || [], paneId: paneIdHint });
     setSessionLoading(false);
     writeSessionHash(session.name);
     if (paneIdHint) remember({ sessionId: session.id, windowId: selectedWindow.id, paneId: paneIdHint });
@@ -2713,7 +2719,9 @@ export default function App() {
       const windowId = current?.window?.id;
       const sessionId = current?.session?.id;
       if (!windowId || !sessionId) return null;
-      const panes = await getPanes(windowId);
+      const prefetched = prefetchedPanesRef.current.get(windowId);
+      if (prefetched) prefetchedPanesRef.current.delete(windowId);
+      const panes = prefetched || await getPanes(windowId);
       const pollKey = `${sessionId}\0${windowId}`;
       const firstPoll = topologyPollKeyRef.current !== pollKey;
       if (firstPoll) topologyPollKeyRef.current = pollKey;
@@ -2774,7 +2782,6 @@ export default function App() {
 
   const inboxList = inboxRows(states, seen, readTs == null ? Infinity : readTs);
   const inboxTop = topView(inboxList);
-  const windowInbox = windowInboxTargets(inboxList);
   const sessionInbox = sessionInboxViews(inboxList);
   const paneInbox = paneInboxViews(inboxList);
   const inboxReconnecting = inboxReconnectNeeded(agentDiscovery);
@@ -2987,7 +2994,6 @@ export default function App() {
         sessionInboxViews={sessionInbox}
         paneInboxViews={paneInbox}
         windowAgents={windowAgents}
-        windowInboxTargets={windowInbox}
       />
       {logoutConfirm && <DeviceLogoutDialog busy={logoutBusy} error={logoutError}
         onClose={() => { setLogoutConfirm(false); setLogoutError(''); }}

@@ -3,14 +3,15 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 
 vi.mock('../src/api.js', () => ({
-  getSessions: vi.fn(async () => [{ id: '$1', name: 'main' }, { id: '$2', name: 'server' }]),
-  getWindowsForSessions: vi.fn(async (ids) => Object.fromEntries(ids.map((id) => [id, []])),
-  ),
+  getSessionTopology: vi.fn(async () => [
+    { session: { id: '$1', name: 'main' }, windows: [] },
+    { session: { id: '$2', name: 'server' }, windows: [] },
+  ]),
   getPanes: vi.fn(async () => []),
 }));
 
 import Drawer from '../src/components/Drawer.jsx';
-import { getPanes, getWindowsForSessions } from '../src/api.js';
+import { getSessionTopology } from '../src/api.js';
 
 let container;
 let root;
@@ -86,40 +87,41 @@ describe('Drawer (bound sessions)', () => {
     expect(main.querySelector('.session-inbox-dot')).toBeNull();
   });
 
-  it('shows the Agent mark, pane switcher value, and inset Inbox dot on Window rows', async () => {
-    getWindowsForSessions.mockResolvedValueOnce({
-      '$1': [{ id: '@1', name: 'main', panes: 2 }, { id: '@2', name: 'shell', panes: 1 }],
-      '$2': [],
-    });
+  it('shows the Agent mark and puts non-default pane Inbox activity on the switcher', async () => {
+    getSessionTopology.mockResolvedValueOnce([
+      { session: { id: '$1', name: 'main' }, windows: [{ id: '@1', name: 'main', panes: 2, activePaneId: '%10', paneList: [
+        { id: '%10', index: 0, active: true, command: 'zsh' },
+        { id: '%11', index: 1, command: 'node' },
+      ] }, { id: '@2', name: 'shell', panes: 1 }] },
+      { session: { id: '$2', name: 'server' }, windows: [] },
+    ]);
     await render({
       windowAgents: { '@1': 'codex' },
-      windowInboxTargets: {
-        '@1': { view: 'needs', paneId: '%11', count: 1, ts: 1 },
-        '@2': { view: 'working', paneId: '%12', count: 1, ts: 1 },
-      },
+      paneInboxViews: { '%11': 'needs', '%12': 'working' },
     });
     await waitForSessions();
     const row = container.querySelector('[data-window-id="@1"]');
     expect(row.querySelector('.agent-mark')?.getAttribute('aria-label')).toBe('codex');
     expect(row.querySelector('.session-window-pane-value')?.textContent).toBe('①');
-    const dot = row.querySelector('.session-window-inbox-dot.needs');
+    const dot = row.querySelector('.session-window-pane-inbox-dot.needs');
     expect(dot?.getAttribute('aria-label')).toBe('需要你');
+    expect(row.querySelector('.session-window-inbox-dot')).toBeNull();
     expect(row.querySelector('.inbox-chip')).toBeNull();
-    expect(dot?.nextElementSibling).toBe(row.querySelector('.agent-mark'));
+    expect(dot?.parentElement).toBe(row.querySelector('.session-window-pane-trigger'));
     expect(row.querySelector('.agent-mark')?.nextElementSibling).toBe(row.querySelector('.session-window-label'));
     const singlePane = container.querySelector('[data-window-id="@2"]');
     expect(singlePane.querySelector('.session-window-pane-value')).toBeNull();
-    expect(singlePane.querySelector('.session-window-inbox-dot.working')?.getAttribute('aria-label')).toBe('进行中');
+    expect(singlePane.querySelector('.session-window-pane-inbox-dot')).toBeNull();
   });
 
   it('hides the single-pane count and opens a switcher for multi-pane Windows', async () => {
     const onSelectSession = vi.fn();
-    getWindowsForSessions.mockResolvedValueOnce({
-      '$1': [{ id: '@1', name: 'main', panes: 2 }, { id: '@2', name: 'shell', panes: 1 }], '$2': [],
-    });
-    getPanes.mockResolvedValueOnce([
-      { id: '%1', command: 'zsh', agent: null },
-      { id: '%2', command: 'node', agent: 'codex' },
+    getSessionTopology.mockResolvedValueOnce([
+      { session: { id: '$1', name: 'main' }, windows: [{ id: '@1', name: 'main', panes: 2, paneList: [
+        { id: '%1', command: 'zsh', agent: null },
+        { id: '%2', command: 'node', agent: 'codex' },
+      ] }, { id: '@2', name: 'shell', panes: 1 }] },
+      { session: { id: '$2', name: 'server' }, windows: [] },
     ]);
     await render({ onSelectSession, currentSessionName: 'main', currentWindowId: '@1', currentPaneId: '%2', currentPanes: [
       { id: '%1', command: 'zsh', agent: null },
@@ -133,7 +135,6 @@ describe('Drawer (bound sessions)', () => {
     await act(async () => {
       multi.querySelector('.session-window-pane-trigger').dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
-    await vi.waitFor(() => expect(getPanes).toHaveBeenCalledWith('@1'));
     const options = document.querySelectorAll('.drawer-pane-menu .dd-option');
     expect(options).toHaveLength(2);
     expect(options[1].className).toContain('is-selected');
@@ -146,20 +147,19 @@ describe('Drawer (bound sessions)', () => {
     expect(onSelectSession).toHaveBeenCalledWith(expect.objectContaining({ paneId: '%1' }));
   });
 
-  it('passes the Window inbox target pane when selecting a Window row', async () => {
+  it('selects the active pane on a Window row instead of an Inbox pane', async () => {
     const onSelectSession = vi.fn();
-    getWindowsForSessions.mockResolvedValueOnce({
-      '$1': [{ id: '@1', name: 'main', panes: 2 }], '$2': [],
-    });
-    await render({ onSelectSession, windowInboxTargets: {
-      '@1': { view: 'needs', paneId: '%2', count: 1, ts: 20 },
-    } });
+    getSessionTopology.mockResolvedValueOnce([
+      { session: { id: '$1', name: 'main' }, windows: [{ id: '@1', name: 'main', panes: 2, activePaneId: '%1' }] },
+      { session: { id: '$2', name: 'server' }, windows: [] },
+    ]);
+    await render({ onSelectSession });
     await waitForSessions();
     await act(async () => {
       container.querySelector('[data-window-id="@1"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(onSelectSession).toHaveBeenCalledWith(expect.objectContaining({
-      window: expect.objectContaining({ id: '@1' }), paneId: '%2',
+      window: expect.objectContaining({ id: '@1' }), paneId: '%1',
     }));
   });
 

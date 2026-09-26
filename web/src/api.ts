@@ -214,10 +214,12 @@ export interface TmuxWindow {
   active?: boolean;
   width?: number;
   activePaneId?: string;
+  paneList?: TmuxPane[];
 }
 
 export interface TmuxPane {
   id: string;
+  index?: number;
   active?: boolean;
   command?: string | null;
   agent?: string | null;
@@ -246,6 +248,7 @@ function parseWindows(value: unknown): TmuxWindow[] {
     const win = recordOf(candidate);
     if (!win || typeof win.id !== 'string') return [];
     const width = finiteOrUndefined(win.width);
+    const paneList = Array.isArray(win.paneList) ? parsePanes(win.paneList) : undefined;
     return [{
       id: win.id,
       name: typeof win.name === 'string' ? win.name : win.id,
@@ -253,6 +256,7 @@ function parseWindows(value: unknown): TmuxWindow[] {
       ...(typeof win.active === 'boolean' ? { active: win.active } : {}),
       ...(width !== undefined ? { width } : {}),
       ...(typeof win.activePaneId === 'string' ? { activePaneId: win.activePaneId } : {}),
+      ...(paneList ? { paneList } : {}),
     }];
   });
 }
@@ -266,8 +270,10 @@ function parsePanes(value: unknown): TmuxPane[] {
     const top = finiteOrUndefined(pane.top);
     const width = finiteOrUndefined(pane.width);
     const height = finiteOrUndefined(pane.height);
+    const index = finiteOrUndefined(pane.index);
     return [{
       id: pane.id,
+      ...(index !== undefined && Number.isInteger(index) && index >= 0 ? { index } : {}),
       ...(typeof pane.active === 'boolean' ? { active: pane.active } : {}),
       ...(typeof pane.command === 'string' || pane.command === null ? { command: pane.command } : {}),
       ...(typeof pane.agent === 'string' || pane.agent === null ? { agent: pane.agent } : {}),
@@ -283,9 +289,13 @@ export const getSessions = async (): Promise<TmuxSession[]> => parseSessions(awa
 export interface TmuxSessionTopology { session: TmuxSession; windows: TmuxWindow[] }
 export const getSessionTopology = async (): Promise<TmuxSessionTopology[]> => {
   const value = await req('/api/sessions/topology');
-  return Array.isArray(value) ? value.filter((row): row is TmuxSessionTopology => (
-    !!row && typeof row === 'object' && 'session' in row && 'windows' in row
-  )) : [];
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((row): TmuxSessionTopology[] => {
+    const item = recordOf(row);
+    const session = parseSessions([item?.session])[0];
+    if (!session || !Array.isArray(item?.windows)) return [];
+    return [{ session, windows: parseWindows(item.windows) }];
+  });
 };
 export const getUsage = (): Promise<unknown> => req('/api/usage');
 export const getAgentUsage = (refresh = false, targetAgentId?: string): Promise<unknown> => req(

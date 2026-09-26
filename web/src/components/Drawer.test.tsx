@@ -4,8 +4,7 @@ import { cleanup, fireEvent, render } from '@testing-library/react';
 // These tests exercise the drawer shell, not the asynchronous topology loader. Keep the loader
 // pending so it cannot publish state after a test has already unmounted the component.
 vi.mock('../api.js', () => ({
-  getSessions: vi.fn(() => new Promise(() => {})),
-  getWindowsForSessions: vi.fn(() => new Promise(() => {})),
+  getSessionTopology: vi.fn(() => new Promise(() => {})),
 }));
 
 import Drawer from './Drawer.jsx';
