@@ -23,6 +23,8 @@ export interface WorkspaceWindow {
   name?: string | null;
   active?: boolean;
   panes: number;
+  activePaneId?: string;
+  paneList?: WorkspacePane[];
 }
 
 export interface WorkspacePane extends PaneLayoutSource {

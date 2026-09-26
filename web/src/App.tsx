@@ -18,7 +18,7 @@ import {
 import type { ChatTone, ConversationFontSize, RootView } from './storage.js';
 import { LATEST_RELEASE } from './changelog.js';
 import {
-  getSessions, getWindows, getPanes, resizeWindow, resizePane, getWindowLayout,
+  getSessions, getSessionTopology, getWindows, getPanes, resizeWindow, resizePane, getWindowLayout,
   applyWindowLayout, restoreWindowSize, sendText, createWindow,
   renameSession, deleteSession, renameWindow, deleteWindow, swapWindows, fetchDoc, fetchImageUrl,
   getStates, getOrphans, takeoverOrphan, getAgentDiscovery, markAgentTerminalNotificationsRead,
@@ -176,6 +176,7 @@ interface HostWindow extends WorkspaceWindow {
   name: string;
   width?: number;
   activePaneId?: string;
+  paneList?: HostPane[];
 }
 
 interface HostPane extends WorkspacePane {
@@ -838,19 +839,36 @@ export default function App() {
   ): Promise<boolean> => {
     const switchEpoch = ++windowSwitchRef.current;
     if (isCancelled()) return false;
-    const windows = await getWindows(session.id);
+    let windows: HostWindow[];
+    try {
+      const topology = await getSessionTopology();
+      const row = topology.find((candidate) => candidate.session.id === session.id
+        || candidate.session.name === session.name);
+      windows = row?.windows.map(hostWindow) || [];
+    } catch {
+      // Older servers do not expose topology yet; retain the previous opening path.
+      windows = [];
+    }
+    if (!windows.length) windows = (await getWindows(session.id)).map(hostWindow);
     if (isCancelled() || switchEpoch !== windowSwitchRef.current) return false;
     if (!windows.length) return false;
     const selectedWindow = (target?.window && windows.find((w) => w.id === target.window))
       || windows.find((w) => w.id === pickId(windows, getLastWindow(session.id)))
       || windows[0];
     if (!selectedWindow) return false;
-    const panes = await getPanes(selectedWindow.id);
-    if (isCancelled() || switchEpoch !== windowSwitchRef.current) return false;
+    const structuralPanes = selectedWindow.paneList?.map((pane) => ({ ...pane })) as HostPane[] | undefined;
+    let panes = structuralPanes || [];
+    if (!panes.length) {
+      panes = await getPanes(selectedWindow.id);
+      if (isCancelled() || switchEpoch !== windowSwitchRef.current) return false;
+    }
     if (!panes.length) return false;
     const paneId = (target?.pane && panes.some((p) => p.id === target.pane))
       ? target.pane
       : pickId(panes, getLastPane(selectedWindow.id));
+    if (structuralPanes?.length && structuralPanes.every((pane) => Object.hasOwn(pane, 'agent'))) {
+      prefetchedPanesRef.current.set(selectedWindow.id, structuralPanes);
+    }
     setControlsRevision((revision) => revision + 1);
     setCurrent({ session, windows, window: selectedWindow, panes, paneId });
     remember({ sessionId: session.id, windowId: selectedWindow.id, paneId });
@@ -1073,12 +1091,21 @@ export default function App() {
     const window = hostWindow(sourceWindow);
     const switchEpoch = ++windowSwitchRef.current;
     const rememberedPaneId = getLastPane(window.id);
-    const immediatePaneId = rememberedPaneId || window.activePaneId || null;
+    const structuralPanes = window.paneList?.map((pane) => ({ ...pane })) as HostPane[] | undefined;
+    const rememberedExists = !!rememberedPaneId && !!structuralPanes?.some((pane) => pane.id === rememberedPaneId);
+    const immediatePaneId = (rememberedExists ? rememberedPaneId : null)
+      || structuralPanes?.find((pane) => pane.active)?.id
+      || window.activePaneId
+      || structuralPanes?.[0]?.id
+      || null;
     // Commit the user's choice before touching the network. With activePaneId supplied by the existing
     // window listing, Terminal mounts now and shows its own loading surface while pane metadata catches up.
     if (!immediatePaneId || !current) return null;
     setControlsRevision((revision) => revision + 1);
-    setCurrent((c) => (c ? { ...c, window, panes: [], paneId: immediatePaneId } : c));
+    if (structuralPanes?.length && structuralPanes.every((pane) => Object.hasOwn(pane, 'agent'))) {
+      prefetchedPanesRef.current.set(window.id, structuralPanes);
+    }
+    setCurrent((c) => (c ? { ...c, window, panes: structuralPanes || [], paneId: immediatePaneId } : c));
     remember({ sessionId: current.session.id, windowId: window.id, paneId: immediatePaneId });
     try {
       const panes = await getPanes(window.id);
@@ -1482,7 +1509,17 @@ export default function App() {
   // ~0.5s), but only a window action re-read the window list, so a tab kept the old name until something
   // unrelated happened. The panes poll carries it along now, so a rename lands on that tick.
   const refreshWindows = useCallback((sessionId: string, windows: HostWindow[]) => {
-    setCurrent((c) => (c && c.session.id === sessionId ? { ...c, windows } : c));
+    setCurrent((c) => {
+      if (!c || c.session.id !== sessionId) return c;
+      const previous = new Map(c.windows.map((window) => [window.id, window] as const));
+      const nextWindows = windows.map((window) => {
+        const old = previous.get(window.id);
+        // The regular /windows refresh has no paneList. Preserve the topology snapshot
+        // supplied by the Drawer so WindowBar switches can render panes immediately.
+        return old?.paneList && !window.paneList ? { ...window, paneList: old.paneList } : window;
+      });
+      return { ...c, windows: nextWindows };
+    });
   }, []);
 
   // Persist automatic pane replacement as well as explicit navigation. Without this, a reload after an
