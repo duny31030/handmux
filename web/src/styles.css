@@ -1121,7 +1121,7 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .session-section-title { flex:0 1 auto; min-width:0; max-width:calc(100% - 70px); height:36px; display:flex; align-items:center; gap:0; padding:0; border:0; background:transparent !important; box-shadow:none !important; color:rgba(255,255,255,.94); text-align:left; font:15px/20px -apple-system,BlinkMacSystemFont,sans-serif; font-weight:700; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
 .session-section-icon { position:relative; flex:none; display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; margin-right:8px; color:rgba(235,235,245,.62); }
 .session-section-icon svg { width:17px; height:17px; }
-.session-inbox-dot { position:absolute; top:-2px; right:-3px; width:7px; height:7px; border:1.5px solid rgba(255,255,255,.88); border-radius:50%; background:rgba(235,235,245,.42); }
+.session-inbox-dot { position:absolute; top:-2px; right:-3px; width:7px; height:7px; border:1px solid rgba(235,235,245,.52); border-radius:50%; background:rgba(235,235,245,.42); }
 .session-inbox-dot.needs { background:#e0a020; }
 .session-inbox-dot.done { background:var(--green); }
 .session-inbox-dot.error { background:var(--red); }
@@ -1141,7 +1141,7 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .session-window-row.is-current,
 .session-window-row[aria-current="page"] { background:rgba(88,126,172,.48); box-shadow:none; border:0; border-radius:0; color:#fff; font-weight:500; }
 .session-window-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.session-window-inbox-dot { position:absolute; left:12px; top:50%; width:7px; height:7px; margin-top:-3.5px; border:1.5px solid rgba(255,255,255,.88); border-radius:50%; background:rgba(235,235,245,.42); pointer-events:none; }
+.session-window-inbox-dot { position:absolute; left:12px; top:50%; width:7px; height:7px; margin-top:-3.5px; border:1px solid rgba(235,235,245,.52); border-radius:50%; background:rgba(235,235,245,.42); pointer-events:none; }
 .session-window-inbox-dot.needs { background:#e0a020; }
 .session-window-inbox-dot.done { background:var(--green); }
 .session-window-inbox-dot.error { background:var(--red); }
