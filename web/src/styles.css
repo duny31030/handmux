@@ -701,13 +701,13 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
   padding: 7px 8px; text-align: left;
   background: rgba(255, 255, 255, 0.045); border: 1px solid rgba(255, 255, 255, 0.10);
   transition: transform .12s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease; }
-.pane-map-inbox-dot { flex:none; display:inline-block; width:7px; height:7px; margin-left:4px; border:1.5px solid rgba(24,26,30,.82); border-radius:50%; background:rgba(235,235,245,.45); pointer-events:none; vertical-align:middle; }
+.pane-map-inbox-dot { flex:none; display:inline-block; width:7px; height:7px; margin-left:4px; border:1px solid rgba(235,235,245,.52); border-radius:50%; background:rgba(235,235,245,.45); pointer-events:none; vertical-align:middle; }
 .pane-map-inbox-dot.needs { background:#e0a020; }
 .pane-map-inbox-dot.done { background:var(--green); }
 .pane-map-inbox-dot.error { background:var(--red); }
 .pane-map-inbox-dot.working { background:var(--blue); animation:tw-blink 1s ease-in-out infinite; }
 .pane-map-cell.is-current .pane-map-inbox-dot,
-.pane-map-cell.is-picking .pane-map-inbox-dot { border-color:rgba(255,255,255,.88); }
+.pane-map-cell.is-picking .pane-map-inbox-dot { border-color:rgba(235,235,245,.52); }
 .pane-map-cell.is-current .pane-map-inbox-dot.working,
 .pane-map-cell.is-picking .pane-map-inbox-dot.working { background:#0040dd; }
 .pane-menu-inbox-dot { flex:none; display:inline-block; width:7px; height:7px; margin-left:4px; border-radius:50%; background:rgba(235,235,245,.42); vertical-align:middle; }
