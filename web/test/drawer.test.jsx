@@ -114,6 +114,23 @@ describe('Drawer (bound sessions)', () => {
     expect(singlePane.querySelector('.session-window-pane-inbox-dot')).toBeNull();
   });
 
+  it('keeps the selected pane Inbox activity on the Window row', async () => {
+    getSessionTopology.mockResolvedValueOnce([
+      { session: { id: '$1', name: 'handmux' }, windows: [{ id: '@1', name: 'main', panes: 2, activePaneId: '%1', paneList: [
+        { id: '%1', command: 'zsh' },
+        { id: '%2', command: 'node' },
+      ] }] },
+    ]);
+    await render({
+      bound: ['handmux'],
+      paneInboxViews: { '%1': 'working', '%2': 'needs' },
+    });
+    await vi.waitFor(() => expect(container.querySelectorAll('.session-section')).toHaveLength(1));
+    const row = container.querySelector('[data-window-id="@1"]');
+    expect(row.querySelector('.session-window-inbox-dot.working')?.getAttribute('aria-label')).toBe('进行中');
+    expect(row.querySelector('.session-window-pane-inbox-dot.needs')?.getAttribute('aria-label')).toBe('需要你');
+  });
+
   it('hides the single-pane count and opens a switcher for multi-pane Windows', async () => {
     const onSelectSession = vi.fn();
     getSessionTopology.mockResolvedValueOnce([

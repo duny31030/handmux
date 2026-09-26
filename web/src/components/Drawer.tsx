@@ -719,6 +719,7 @@ export default function Drawer({
                         ? rememberedPaneId : window.activePaneId);
                     const paneIndex = Math.max(0, panes.findIndex((pane) => pane.id === paneTargetId));
                     const paneValue = paneSeq(paneIndex);
+                    const selectedPaneInboxView = paneTargetId ? paneInboxViews[paneTargetId] : null;
                     const paneInboxView = window.panes > 1
                       ? nonDefaultPaneInboxView(panes, paneTargetId, paneInboxViews) : null;
                     return (
@@ -752,6 +753,11 @@ export default function Drawer({
                             }
                           }}
                         >
+                          {selectedPaneInboxView && <span
+                            className={`session-window-inbox-dot ${selectedPaneInboxView}`}
+                            role="img"
+                            aria-label={VIEW_LABEL[selectedPaneInboxView]}
+                          />}
                           {windowAgents[window.id] && <AgentMark agent={windowAgents[window.id] ?? null} />}
                           <span className="session-window-label">{window.name || window.id}</span>
                           <span className="session-window-actions">
