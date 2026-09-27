@@ -4,6 +4,8 @@ All notable changes to handmux. Format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.32.1] - 2026-09-28
+
 ### Changed
 
 - 抽屉中的 Window 现在显示 Agent 标识和收件箱状态；多 pane Window 使用浮动分屏切换器，单 pane 不再显示无意义的“1”。
