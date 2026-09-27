@@ -1,6 +1,7 @@
 import { requestJson } from './apiRequest.js';
 import { parseSseFrames } from './sse.js';
 import { authenticationHeaders, authenticationError } from './authSession.js';
+import { observeServerResponse } from './serverVersion.js';
 import type { AgentRunRef } from './agentCatalog.js';
 import type {
   AgentInteractionEvent,
@@ -177,6 +178,7 @@ export async function streamAgentInteractions(
     headers: authenticationHeaders({ Accept: 'text/event-stream' }),
     credentials: 'same-origin',
   });
+  observeServerResponse(response);
   if (response.status === 401) throw await authenticationError();
   if (!response.ok || !response.body) throw new Error('Agent Interaction stream unavailable');
   const reader = response.body.getReader();

@@ -4,7 +4,6 @@
 import express from 'express';
 import { dirname, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
 import { isSessionId } from '../tmux/commands.js';
 import { asrConfig } from '../asr/config.js';
 import { voiceProviderRegistry } from '../asr/providerRegistry.js';
@@ -25,6 +24,7 @@ import type { NextFunction, Request, RequestHandler, Response, Router } from 'ex
 import type { ShortcutConfig } from '../shortcutConfig.js';
 import type { AgentIntegrationContext, AgentName } from '../cli/agentIntegration.js';
 import type { FillerFilterLevel } from '../asr/providerRegistry.js';
+import { SERVER_VERSION } from '../version.js';
 
 type TakeoverCommands = Parameters<typeof takeoverOrphan>[0]['commands'];
 interface LivePaneCommands {
@@ -75,20 +75,6 @@ const requestFillerFilter = (value: unknown): FillerFilterLevel | null => {
   return typeof value === 'string' && FILLER_FILTER_LEVELS.includes(value as FillerFilterLevel)
     ? value as FillerFilterLevel : null;
 };
-
-// The installed CLI version (server/package.json) — read once. The phone compares this against the cached
-// npm "latest" to surface an update hint ("run `handmux update` on your computer"); see the /version route.
-const PKG_VERSION = (() => {
-  try {
-    const value: unknown = JSON.parse(readFileSync(resolvePath(here, '../../package.json'), 'utf8'));
-    return isRecord(value) && typeof value.version === 'string' ? value.version : null;
-  }
-  catch { return null; }
-})();
-
-// Changes whenever the running server process starts. The web client uses this to notice a backend
-// restart (including an upgrade that kept the public version unchanged) while the page is still open.
-const SERVER_INSTANCE_ID = `${Date.now().toString(36)}-${process.pid}`;
 
 export function systemRoutes({
   commands, claudeEvents, agentRuntime, asrEnv, shortcuts, home, stateFile, previewDomain,
@@ -143,13 +129,13 @@ export function systemRoutes({
     const cache = readCache(home);
     if (shouldRefresh(cache)) refreshLatestAsync(home);
     const latest = cache?.latest ?? null;
-    const updateAvailable = !!(latest && PKG_VERSION && isNewer(latest, PKG_VERSION));
+    const updateAvailable = !!(latest && SERVER_VERSION && isNewer(latest, SERVER_VERSION));
     // `whatsNew` is the concise per-version highlights the newer package carries (via npm). Trim to the
     // versions the user would actually GAIN by upgrading (strictly newer than what's installed here).
     const whatsNew = (updateAvailable && Array.isArray(cache?.whatsNew))
-      ? cache.whatsNew.filter((e) => e && e.version && isNewer(e.version, PKG_VERSION))
+      ? cache.whatsNew.filter((e) => e && e.version && isNewer(e.version, SERVER_VERSION))
       : [];
-    return res.json({ current: PKG_VERSION, latest, updateAvailable, whatsNew, instanceId: SERVER_INSTANCE_ID });
+    return res.json({ current: SERVER_VERSION, latest, updateAvailable, whatsNew });
   });
 
   // One-tap enable from the phone installs Claude Code hooks only. Codex uses App Server and must never

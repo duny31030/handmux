@@ -2,6 +2,7 @@ import { ApiError, parseApiErrorBody } from './apiErrors.js';
 import { requestJson } from './apiRequest.js';
 import { parseSseFrames } from './sse.js';
 import { authenticationHeaders, authenticationError } from './authSession.js';
+import { observeServerResponse } from './serverVersion.js';
 import type { AgentRunRef } from './agentCatalog.js';
 import type {
   ConversationCapabilities,
@@ -495,6 +496,7 @@ export async function streamAgentConversation(
       credentials: 'same-origin',
     }), Math.max(0, readyDeadline - Date.now()), requestController.signal,
     'Agent Conversation live stream did not become ready', abortRequest);
+    observeServerResponse(response);
     if (response.status === 401) throw await authenticationError();
     if (!response.ok) {
       let body = null;
@@ -650,6 +652,7 @@ export async function downloadAgentConversationResource(
     headers: authenticationHeaders({ Accept: 'application/octet-stream' }),
     credentials: 'same-origin',
   });
+  observeServerResponse(response);
   if (response.status === 401) throw await authenticationError();
   if (!response.ok) {
     let body = null;

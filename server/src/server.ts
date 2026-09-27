@@ -66,6 +66,7 @@ import { CodexActivationReceiptStore } from './agents/codexActivationReceipt.js'
 import { ApiAccountService, apiAccountsPath } from './apiAccounts.js';
 import { ClaudeHookBridgeConnector } from '../connectors/claude/index.js';
 import { CodeBuddyHookBridgeConnector } from '../connectors/codebuddy/index.js';
+import { SERVER_VERSION, SERVER_VERSION_HEADER } from './version.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -362,6 +363,7 @@ auth.onRevoke((id) => { browserWorker.revokeDevice(id); });
 const app = express();
 app.disable('x-powered-by');
 app.use((_req, res, next) => {
+  if (SERVER_VERSION) res.setHeader(SERVER_VERSION_HEADER, SERVER_VERSION);
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
   next();

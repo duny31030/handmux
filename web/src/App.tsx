@@ -125,6 +125,7 @@ import type {
 import { canResizePaneWidth } from './paneLayout.js';
 import { AgentCatalogProvider, inboxReconnectNeeded } from './agentCatalog.js';
 import type { AgentCatalogDescriptor, AgentDiscoverySnapshot, AgentRunRef } from './agentCatalog.js';
+import { SERVER_VERSION_EVENT, serverReloadRequired as isServerReloadRequired } from './serverVersion.js';
 import { canSendConversation, useAgentConversation } from './hooks/useAgentConversation.js';
 import { useAgentInteraction } from './hooks/useAgentInteraction.js';
 import { useAgentSessionControl } from './hooks/useAgentSessionControl.js';
@@ -209,25 +210,7 @@ interface UpdateInfo {
   current?: string | null;
   latest?: string | null;
   updateAvailable?: boolean;
-  instanceId?: string;
   whatsNew?: { version: string; zh?: string; en?: string }[];
-}
-
-const SERVER_VERSION_POLL_MS = 60_000;
-
-function versionParts(value: unknown): [number, number, number] | null {
-  const match = String(value || '').trim().match(/^v?(\d+)\.(\d+)\.(\d+)/);
-  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
-}
-
-function isVersionNewer(left: unknown, right: unknown): boolean {
-  const a = versionParts(left);
-  const b = versionParts(right);
-  if (!a || !b) return false;
-  for (let i = 0; i < 3; i += 1) {
-    if (a[i] !== b[i]) return a[i] > b[i];
-  }
-  return false;
 }
 
 interface WorkspaceProtection {
@@ -457,8 +440,7 @@ export default function App() {
   const [changelogOpen, setChangelogOpen] = useState(false); // "what's new" sheet open
   const [clSeen, setClSeen] = useState(getChangelogSeen); // latest changelog id the user has opened
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null); // { current, latest, updateAvailable } — npm update hint (checked once per launch)
-  const [serverReloadRequired, setServerReloadRequired] = useState(false);
-  const serverInstanceIdRef = useRef<string | null>(null);
+  const [serverReloadRequired, setServerReloadRequired] = useState(isServerReloadRequired);
   const [verSeen, setVerSeen] = useState(getVersionSeen); // npm "latest" already acknowledged by opening Settings
   const [seen, setSeen] = useState(getInboxSeen); // pane → last-viewed ts (inbox read state)
   const [readTs, setReadTs] = useState(getInboxReadTs); // server-ts high-water mark for done history (null=unset)
@@ -725,40 +707,17 @@ export default function App() {
     return () => window.removeEventListener('keydown', onPageKeyDown, true);
   }, [desktopInput, terminalOverlayOpen, lens, current?.paneId]);
 
-  // Check the installed version and process identity on launch and while the app is visible. The process
-  // identity catches a backend restart even when its public version did not change; a newer server version
-  // catches an upgrade before the refreshed web bundle has been loaded.
   useEffect(() => {
-    if (needToken) {
-      serverInstanceIdRef.current = null;
-      return undefined;
-    }
-    let active = true;
-    let inFlight = false;
-    const check = (): void => {
-      if (!active || document.visibilityState === 'hidden' || inFlight) return;
-      inFlight = true;
-      void getServerVersion().then((info) => {
-        if (!active) return;
-        const previousInstanceId = serverInstanceIdRef.current;
-        if (previousInstanceId && info.instanceId && previousInstanceId !== info.instanceId) {
-          setServerReloadRequired(true);
-        }
-        if (info.instanceId) serverInstanceIdRef.current = info.instanceId;
-        if (isVersionNewer(info.current, LATEST_RELEASE)) setServerReloadRequired(true);
-        setUpdateInfo(info);
-      }).catch(() => { /* best-effort; no hint on failure */ })
-        .finally(() => { inFlight = false; });
-    };
-    const onVisibilityChange = (): void => { if (document.visibilityState === 'visible') check(); };
-    check();
-    const timer = window.setInterval(check, SERVER_VERSION_POLL_MS);
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-    };
+    const onServerVersion = (): void => setServerReloadRequired(true);
+    window.addEventListener(SERVER_VERSION_EVENT, onServerVersion);
+    return () => window.removeEventListener(SERVER_VERSION_EVENT, onServerVersion);
+  }, []);
+
+  // The server version is also checked here for the existing Settings update notice. The response header is
+  // observed by the shared request layer, so this request needs no special reload polling.
+  useEffect(() => {
+    if (needToken) return;
+    getServerVersion().then(setUpdateInfo).catch(() => { /* best-effort; no hint on failure */ });
   }, [needToken]);
 
   // Device logout is an actual server revocation; a network failure must not look like unbinding.

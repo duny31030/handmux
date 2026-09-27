@@ -1,6 +1,7 @@
 import { getToken, setBrowserAccessEnabled } from './storage.js';
 import { UnauthorizedError } from './apiErrors.js';
 import { withAuthLock } from './authCoordination.js';
+import { observeServerResponse } from './serverVersion.js';
 
 export type AuthMode = 'token' | 'trusted-device';
 export interface PairingState {
@@ -84,6 +85,7 @@ async function performAuthRequest(path: string, method: string, id?: string): Pr
       headers: { ...authenticationHeaders(), ...(id ? { 'Content-Type': 'application/json' } : {}) },
       ...(id ? { body: JSON.stringify({ id }) } : {}),
     });
+    observeServerResponse(response);
     if (!response.ok) {
       let code: string | null = null;
       try { const body = await response.json() as { code?: unknown; error?: unknown }; const value = typeof body.code === 'string' ? body.code : body.error; if (typeof value === 'string') code = value; } catch { /* proxy non-JSON */ }

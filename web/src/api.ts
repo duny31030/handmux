@@ -4,6 +4,7 @@ import { mimeFromName } from './mime.js';
 import { t } from './i18n';
 import { SpeechNotRecognizedError } from './apiErrors.js';
 import { requestJson as req } from './apiRequest.js';
+import { observeServerVersion, SERVER_VERSION_HEADER } from './serverVersion.js';
 import { parseAsrSession } from './voice/providerRegistry.js';
 import type {
   AsrSignResponse,
@@ -522,7 +523,6 @@ export interface ServerVersionInfo {
   current?: string | null;
   latest?: string | null;
   updateAvailable?: boolean;
-  instanceId?: string;
   whatsNew?: { version: string; zh?: string; en?: string }[];
 }
 
@@ -540,7 +540,6 @@ export const getServerVersion = async (): Promise<ServerVersionInfo> => {
     ...(typeof value.current === 'string' || value.current === null ? { current: value.current } : {}),
     ...(typeof value.latest === 'string' || value.latest === null ? { latest: value.latest } : {}),
     ...(typeof value.updateAvailable === 'boolean' ? { updateAvailable: value.updateAvailable } : {}),
-    ...(typeof value.instanceId === 'string' ? { instanceId: value.instanceId } : {}),
     ...(whatsNew ? { whatsNew } : {}),
   } : {};
 };
@@ -752,6 +751,7 @@ export function downloadFile(path: string, onProgress?: TransferProgress): Promi
     xhr.onprogress = (e) => { if (onProgress && e.lengthComputable) onProgress(e.loaded / e.total); };
     xhr.onerror = () => reject(new Error('download failed'));
     xhr.onload = () => {
+      observeServerVersion(xhr.getResponseHeader(SERVER_VERSION_HEADER));
       if (xhr.status === 401) { void authenticationError().then(reject); return; }
       if (xhr.status < 200 || xhr.status >= 300) return reject(new Error(`download -> ${xhr.status}`));
       const name = path.split('/').pop() || 'download';
@@ -802,6 +802,7 @@ export function fetchImageUrl(
     xhr.responseType = 'blob';
     xhr.onerror = () => reject(new Error(t('api.loadFailed')));
     xhr.onload = () => {
+      observeServerVersion(xhr.getResponseHeader(SERVER_VERSION_HEADER));
       if (xhr.status === 304) return resolve({ notModified: true });
       if (xhr.status === 401) { void authenticationError().then(reject); return; }
       if (xhr.status < 200 || xhr.status >= 300) return reject(new Error(`image -> ${xhr.status}`));
@@ -879,6 +880,7 @@ export function uploadFile(
     xhr.onerror = () => { cleanup(); reject(new Error(t('api.uploadFailed'))); };
     xhr.onload = () => {
       cleanup();
+      observeServerVersion(xhr.getResponseHeader(SERVER_VERSION_HEADER));
       if (xhr.status === 401) { void authenticationError().then(reject); return; }
       if (xhr.status >= 200 && xhr.status < 300) {
         try { return resolve(JSON.parse(xhr.responseText)); } catch { return resolve({}); }

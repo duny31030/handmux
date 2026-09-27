@@ -1,7 +1,12 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const serverPackage = JSON.parse(readFileSync(path.resolve(here, '../server/package.json'), 'utf8'));
+const clientVersion = typeof serverPackage.version === 'string' ? serverPackage.version : '0.0.0';
 
 function resolveMigratedTypeScript() {
   return {
@@ -45,6 +50,9 @@ function asyncAppCss() {
 }
 
 export default defineConfig({
+  define: {
+    __HANDMUX_CLIENT_VERSION__: JSON.stringify(clientVersion),
+  },
   plugins: [resolveMigratedTypeScript(), react(), asyncAppCss()],
   server: {
     host: true,

@@ -1,5 +1,6 @@
 import { authenticationHeaders, authenticationError } from './authSession.js';
 import { ApiError, parseApiErrorBody } from './apiErrors.js';
+import { observeServerResponse } from './serverVersion.js';
 export type { AsrSessionResponse } from './voice/providerRegistry.js';
 
 export interface JsonRequestOptions extends Omit<RequestInit, 'headers'> {
@@ -51,6 +52,7 @@ export async function requestJson<T = unknown>(
       cache: 'no-store', credentials: 'same-origin', ...rest, headers,
       ...(controller ? { signal: controller.signal } : {}),
     });
+    observeServerResponse(response);
     // During a service restart the proxy can briefly answer 401 while adjacent
     // requests are returning 502. Do not turn that transient response into a
     // full-page Token prompt; retry once, while a persistent 401 remains a real
@@ -61,6 +63,7 @@ export async function requestJson<T = unknown>(
         cache: 'no-store', credentials: 'same-origin', ...rest, headers,
         ...(controller ? { signal: controller.signal } : {}),
       });
+      observeServerResponse(response);
     }
     if (response.status === 401) throw await authenticationError();
     if (!response.ok) {

@@ -1,4 +1,5 @@
 import { authenticationHeaders } from './authSession.js';
+import { observeServerResponse } from './serverVersion.js';
 export interface ManagedDevice {
   id: string; name: string; browser_summary: string; authorized_at: number; expires_at: number | null;
   last_used_at: number; revoked_at: number | null; status: 'active' | 'expired' | 'revoked'; version: number;
@@ -24,6 +25,7 @@ async function request<T>(path: string, method = 'GET', body?: object): Promise<
       headers: { ...authenticationHeaders(), ...(body ? { 'Content-Type': 'application/json' } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
+    observeServerResponse(response);
     const value = await response.json();
     if (!response.ok) throw new DeviceManagementError(typeof value?.error === 'string' ? value.error : 'AUTH_UNAVAILABLE', response.status);
     return value as T;

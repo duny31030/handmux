@@ -4,6 +4,7 @@
 import { getBoundSessions } from './storage.js';
 import { authenticationHeaders, authenticationError } from './authSession.js';
 import { t } from './i18n';
+import { observeServerResponse } from './serverVersion.js';
 
 export type DeliveryStatus = 'pending' | 'success' | 'failed';
 
@@ -144,7 +145,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, key: string):
   let timer: ReturnType<typeof setTimeout> | undefined;
   let timedOut = false;
   try {
-    return await Promise.race([
+    const response = await Promise.race([
       fetch(url, { credentials: 'same-origin', ...options, signal: controller.signal }),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
@@ -154,6 +155,8 @@ async function fetchWithTimeout(url: string, options: RequestInit, key: string):
         }, LOCAL_STEP_TIMEOUT_MS);
       }),
     ]);
+    observeServerResponse(response);
+    return response;
   } catch (error) {
     // abort dispatch can make fetch reject before the timeout promise wins the race. Normalize that
     // ordering difference so callers always receive the stage-specific error, never bare AbortError.

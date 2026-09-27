@@ -35,6 +35,7 @@ import type { ProjectTaskRuntime } from './projectTask/runtime.js';
 import type { ApiAccountService } from './apiAccounts.js';
 import type { AgentIntegrationContext } from './cli/agentIntegration.js';
 import { apiAccountRoutes } from './routes/apiAccounts.js';
+import { SERVER_VERSION, SERVER_VERSION_HEADER } from './version.js';
 
 type NativeClaudeEvents = ReturnType<typeof createClaudeEvents>;
 type RoutedClaudeEvents = NativeClaudeEvents
@@ -96,6 +97,10 @@ export function createApiRouter({
   home = homedir(), stateFile = process.env.CLAUDE_STATE_FILE || claudeStatePath(homedir()),
 }: CreateApiRouterOptions): Router {
   const r = express.Router();
+  r.use((_req, res, next) => {
+    if (SERVER_VERSION) res.setHeader(SERVER_VERSION_HEADER, SERVER_VERSION);
+    next();
+  });
   r.use(apiRequestContext(apiErrors));
   // Account responses, including auth failures and malformed JSON, must never be cached. Keep the
   // generic auth response stable for every existing route while giving this new API its coded envelope.
