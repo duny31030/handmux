@@ -19,6 +19,30 @@ export interface ChangelogEntry {
 // `entryId`/`LATEST_RELEASE` use `version` when present, else `date`, as the stable unread-dot id.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.32.1',
+    date: '2026-09-28',
+    highlight: {
+      zh: '抽屉与工作区切换更顺滑',
+      en: 'Smoother drawer and workspace switching',
+    },
+    items: {
+      zh: [
+        '抽屉 Window 现在显示 Agent 标识和收件箱状态；多 pane Window 可用浮动列表直接切换，单 pane 不再显示“1”。',
+        '窗口与分屏选择会立即生效；各 Session 独立加载窗口，展开一个 Session 不会影响其他 Session。',
+        '修复窗口拓扑刷新时对话输入框、键盘或模型状态被重置的问题。',
+        '修复收件箱状态点跳到其他分屏，以及展开 Session 时其他窗口列表暂时消失的问题。',
+        '修复强制夜间模式重复反转终端文字与图标，以及 Claude 后台 Shell 回合结束后消息仍排队的问题。',
+      ],
+      en: [
+        'Drawer windows now show Agent marks and Inbox status; a floating list switches multi-pane windows, while single-pane windows no longer show “1”.',
+        'Window and pane selection applies immediately; each Session loads its windows independently without disturbing other Sessions.',
+        'Fixed conversation composer, keyboard, or model state being reset during window topology refreshes.',
+        'Fixed Inbox status leading to the wrong pane and other window lists disappearing briefly when a Session expands.',
+        'Fixed forced dark mode inverting terminal text and icons twice, and messages remaining queued after a Claude background Shell turn ended.',
+      ],
+    },
+  },
+  {
     version: '0.32.0',
     date: '2026-09-24',
     highlight: {
