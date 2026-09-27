@@ -15,7 +15,7 @@ vi.mock('../src/api.js', () => ({
 }));
 
 import Drawer from '../src/components/Drawer.jsx';
-import { getSessions, getSessionTopology } from '../src/api.js';
+import { getPanes, getSessions, getSessionTopology } from '../src/api.js';
 
 let container;
 let root;
@@ -25,11 +25,24 @@ beforeEach(() => {
   document.body.appendChild(container);
   root = createRoot(container);
   localStorage.removeItem('handmux.drawer.expanded-sessions');
+  getSessions.mockReset();
+  getSessions.mockResolvedValue([
+    { id: '$1', name: 'main' },
+    { id: '$2', name: 'server' },
+  ]);
+  getSessionTopology.mockReset();
+  getSessionTopology.mockResolvedValue([
+    { session: { id: '$1', name: 'main' }, windows: [] },
+    { session: { id: '$2', name: 'server' }, windows: [] },
+  ]);
+  getPanes.mockReset();
+  getPanes.mockResolvedValue([]);
 });
 
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  vi.restoreAllMocks();
 });
 
 const base = {
@@ -90,6 +103,35 @@ describe('Drawer (bound sessions)', () => {
     await vi.waitFor(() => expect(container.querySelector('[data-window-id="@1"]')).not.toBeNull());
     expect(container.querySelector('[data-window-id="@2"]')).not.toBeNull();
     expect(getSessionTopology).toHaveBeenLastCalledWith(['$1']);
+  });
+
+  it('does not refresh an older expanded Session when another Session opens after the cache interval', async () => {
+    let now = 1_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    let finishMain;
+    getSessionTopology.mockImplementationOnce(async () => [{
+      session: { id: '$2', name: 'server' },
+      windows: [{ id: '@2', name: 'server-window', panes: 1 }],
+    }]);
+    getSessionTopology.mockImplementationOnce(() => new Promise((resolve) => { finishMain = resolve; }));
+    localStorage.setItem('handmux.drawer.expanded-sessions', JSON.stringify({ main: false, server: true }));
+    await render();
+    await waitForSessions();
+    expect(container.querySelector('[data-window-id="@2"]')).not.toBeNull();
+
+    now = 7_000;
+    const main = [...container.querySelectorAll('.session-section-title')].find((node) => node.textContent === 'main');
+    await act(async () => { main.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(getSessionTopology).toHaveBeenCalledTimes(2);
+    expect(getSessionTopology).toHaveBeenLastCalledWith(['$1']);
+    expect(container.querySelector('[data-window-id="@2"]')).not.toBeNull();
+
+    await act(async () => finishMain([{
+      session: { id: '$1', name: 'main' },
+      windows: [{ id: '@1', name: 'main-window', panes: 1 }],
+    }]));
+    expect(container.querySelector('[data-window-id="@1"]')).not.toBeNull();
+    expect(container.querySelector('[data-window-id="@2"]')).not.toBeNull();
   });
 
   it('shows the empty state when nothing is bound', async () => {

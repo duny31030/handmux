@@ -476,6 +476,7 @@ export default function Drawer({
 
   const boundKey = JSON.stringify(bound);
   const expandedKey = JSON.stringify([...expandedSessions]);
+  const lastExpandedKeyRef = useRef<string | null>(null);
   const requestSessionWindows = (sessionIds: readonly string[]): Promise<TmuxWindow[][]> => {
     const uniqueIds = [...new Set(sessionIds)];
     const missingIds = uniqueIds.filter((id) => !topologyInFlightRef.current.has(id));
@@ -501,6 +502,12 @@ export default function Drawer({
         const cached = topologyCache.current;
         const names: string[] = JSON.parse(boundKey);
         const expanded: string[] = JSON.parse(expandedKey);
+        const previousExpanded = lastExpandedKeyRef.current
+          ? new Set<string>(JSON.parse(lastExpandedKeyRef.current) as string[])
+          : null;
+        const expansionChanged = previousExpanded !== null && lastExpandedKeyRef.current !== expandedKey;
+        const newlyExpanded = new Set(expanded.filter((name) => !previousExpanded?.has(name)));
+        lastExpandedKeyRef.current = expandedKey;
         const now = Date.now();
         const orderChanged = cached.orderVersion !== windowOrderVersion;
         const sessionsStale = !cached.sessionsAt || now - cached.sessionsAt >= 5000
@@ -517,8 +524,18 @@ export default function Drawer({
             names.includes(session.name) ? [[session.name, session.id] as const] : []
           )));
         }
-        const targets = expanded.filter((name) => ids[name]
-          && (sessionsStale || !windows[name] || now - (fetchedAt[name] || 0) >= 5000 || orderChanged));
+        const targets = expanded.filter((name) => {
+          if (!ids[name]) return false;
+          const sessionIdentityChanged = ids[name] !== cached.ids[name];
+          if (expansionChanged) {
+            // Toggling one Session must not refresh another already-visible
+            // Session. A newly opened Session is the only active target; an
+            // absent cache is still fetched so an interrupted first load can
+            // recover without requiring a second toggle.
+            return newlyExpanded.has(name) || !windows[name] || sessionIdentityChanged;
+          }
+          return !windows[name] || now - (fetchedAt[name] || 0) >= 5000 || orderChanged || sessionIdentityChanged;
+        });
         if (targets.length) {
           const requestedIds = targets.flatMap((name) => ids[name] ? [ids[name]!] : []);
           const windowRows = await requestSessionWindows(requestedIds);
