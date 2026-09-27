@@ -11,6 +11,8 @@ interface PaneItem {
   id: string;
 }
 
+interface PaneRequestOptions { fresh?: boolean }
+
 interface PaneApi {
   splitPane(paneId: string, dir: string): Promise<unknown>;
   closePane(paneId: string): Promise<unknown>;
@@ -21,7 +23,7 @@ interface SplitPaneInput<TPane extends PaneItem> {
   dir: string;
   windowId: string;
   api: Pick<PaneApi, 'splitPane'>;
-  getPanes: (windowId: string) => Promise<TPane[]>;
+  getPanes: (windowId: string, options?: PaneRequestOptions) => Promise<TPane[]>;
 }
 
 interface ClosePaneInput<TPane extends PaneItem> {
@@ -29,7 +31,7 @@ interface ClosePaneInput<TPane extends PaneItem> {
   windowId: string;
   viewedPaneId: string | null;
   api: Pick<PaneApi, 'closePane'>;
-  getPanes: (windowId: string) => Promise<TPane[]>;
+  getPanes: (windowId: string, options?: PaneRequestOptions) => Promise<TPane[]>;
   pickId: (panes: TPane[], preferred: string | null) => string | null;
 }
 
@@ -46,7 +48,7 @@ export async function runSplitPane<TPane extends PaneItem>({
   paneId, dir, windowId, api, getPanes,
 }: SplitPaneInput<TPane>): Promise<{ panes: TPane[]; selectPaneId: string }> {
   const id = resultId(await api.splitPane(paneId, dir));
-  const panes = await getPanes(windowId);
+  const panes = await getPanes(windowId, { fresh: true });
   return { panes, selectPaneId: id };
 }
 
@@ -58,7 +60,7 @@ export async function runClosePane<TPane extends PaneItem>({
   paneId, windowId, viewedPaneId, api, getPanes, pickId,
 }: ClosePaneInput<TPane>): Promise<{ panes: TPane[]; selectPaneId: string | null }> {
   await api.closePane(paneId);
-  const panes = await getPanes(windowId);
+  const panes = await getPanes(windowId, { fresh: true });
   const selectPaneId = (paneId === viewedPaneId && panes.length) ? pickId(panes, null) : null;
   return { panes, selectPaneId };
 }

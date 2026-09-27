@@ -19,7 +19,7 @@ interface SessionCommands {
   swapWindows(firstWindowId: string, secondWindowId: string): Promise<unknown>;
   killWindow(windowId: string): Promise<unknown>;
   listPanes(windowId: string): Promise<TmuxPane[]>;
-  listAllPanes(): Promise<Array<TmuxPane & { windowId: string }>>;
+  listAllPanes(sessionId?: string): Promise<Array<TmuxPane & { windowId: string }>>;
   splitPane(paneId: string, direction: 'h' | 'v', cwd: string): Promise<string>;
   windowPaneCount(paneId: string): Promise<number>;
   killPane(paneId: string): Promise<unknown>;
@@ -57,19 +57,41 @@ export function sessionRoutes({ commands, docs, workspace, agentIdentity }: Sess
     try { return res.json(await commands.listSessions()); } catch (e) { return next(e); }
   });
 
-  r.get('/sessions/topology', async (_req: Request, res: Response, next: NextFunction) => {
+  r.get('/sessions/topology', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const sessions = await commands.listSessions();
       if (!sessions.length) return res.json([]);
-      const [panes, windowRows] = await Promise.all([
-        commands.listAllPanes(),
-        Promise.all(sessions.map((session) => commands.listWindows(session.id))),
+      // A topology response always carries the complete session roster so the
+      // drawer can reconcile renamed/deleted sessions. When `session` is
+      // present, only those expanded sessions are read for windows and panes;
+      // collapsed sessions are represented by an empty window list.
+      const rawTargets = req.query.session;
+      const sessionsOnly = req.query.sessionsOnly === '1';
+      const targetValues = sessionsOnly
+        ? []
+        : rawTargets === undefined
+          ? null
+          : (Array.isArray(rawTargets) ? rawTargets : [rawTargets]);
+      if (targetValues && targetValues.some((value) => !isSessionId(value))) {
+        return res.status(400).json({ error: 'bad session id' });
+      }
+      const targetIds = targetValues ? new Set(targetValues as string[]) : null;
+      const selected = sessions.filter((session) => !targetIds || targetIds.has(session.id));
+      const [panesBySession, windowRows] = await Promise.all([
+        Promise.all(selected.map((session) => commands.listAllPanes(session.id))),
+        Promise.all(sessions.map((session) => (
+          !targetIds || targetIds.has(session.id)
+            ? commands.listWindows(session.id)
+            : Promise.resolve([] as TmuxWindow[])
+        ))),
       ]);
       const panesByWindow = new Map<string, Array<Omit<TmuxPane, 'tty'>>>();
-      for (const { windowId, tty: _tty, ...pane } of panes) {
-        const group = panesByWindow.get(windowId) || [];
-        group.push(pane);
-        panesByWindow.set(windowId, group);
+      for (const panes of panesBySession) {
+        for (const { windowId, tty: _tty, ...pane } of panes) {
+          const group = panesByWindow.get(windowId) || [];
+          group.push(pane);
+          panesByWindow.set(windowId, group);
+        }
       }
       const topology = sessions.map((session, index) => ({
         session,

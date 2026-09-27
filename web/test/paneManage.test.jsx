@@ -13,7 +13,7 @@ describe('runSplitPane', () => {
     const result = await runSplitPane({ paneId: '%1', dir: 'h', windowId: '@1', api, getPanes });
 
     expect(api.splitPane).toHaveBeenCalledWith('%1', 'h');
-    expect(getPanes).toHaveBeenCalledWith('@1');
+    expect(getPanes).toHaveBeenCalledWith('@1', { fresh: true });
     expect(result).toEqual({ panes, selectPaneId: '%2' });
   });
 

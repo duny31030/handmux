@@ -1686,7 +1686,7 @@ export default function App() {
     if (!layout) return;
     try {
       await applyWindowLayout(windowId, layout);
-      const panes = await getPanes(windowId);
+      const panes = await getPanes(windowId, { fresh: true });
       refreshPanes(windowId, panes);
       setManagedPaneWidth(panes.find((item) => item.id === managePane)?.width ?? null);
       savedLayoutsRef.current.delete(windowId);

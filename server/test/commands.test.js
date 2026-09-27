@@ -8,7 +8,7 @@ import {
   openPaneOutputCapture,
   resizeWindow, restoreWindowSize, newSession, paneCurrentPath, newWindow,
   renameSession, renameWindow, sessionWindowCount, killWindow, swapWindows, wheelSeq,
-  splitPane, windowPaneCount, killPane, runPaneCommand,
+  splitPane, windowPaneCount, killPane, runPaneCommand, listAllPanes,
 } from '../src/tmux/commands.js';
 import { codexExitOutputSessionId } from '../src/agents/codex.js';
 
@@ -123,6 +123,18 @@ describe('tmux commands (integration)', () => {
     expect(panes.length).toBeGreaterThan(0);
     expect(typeof panes[0].cwd).toBe('string');
     expect(panes[0].cwd.startsWith('/')).toBe(true);
+  });
+
+  it('listAllPanes can scope the tmux read to one session', async () => {
+    if (!hasTmux) return;
+    const session = (await listSessions()).find((candidate) => candidate.name === SES);
+    const windows = await listWindows(session.id);
+    const scoped = await listAllPanes(session.id);
+    expect(scoped.length).toBeGreaterThan(0);
+    expect(scoped.every((pane) => windows.some((window) => window.id === pane.windowId))).toBe(true);
+    // The no-target form remains the reconciliation form and includes the scoped rows.
+    const all = await listAllPanes();
+    expect(all).toEqual(expect.arrayContaining(scoped));
   });
 
   it('listPanes includes each pane left/top so a split can be reconstructed', async () => {

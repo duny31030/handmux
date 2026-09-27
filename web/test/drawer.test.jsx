@@ -3,6 +3,10 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 
 vi.mock('../src/api.js', () => ({
+  getSessions: vi.fn(async () => [
+    { id: '$1', name: 'main' },
+    { id: '$2', name: 'server' },
+  ]),
   getSessionTopology: vi.fn(async () => [
     { session: { id: '$1', name: 'main' }, windows: [] },
     { session: { id: '$2', name: 'server' }, windows: [] },
@@ -11,7 +15,7 @@ vi.mock('../src/api.js', () => ({
 }));
 
 import Drawer from '../src/components/Drawer.jsx';
-import { getSessionTopology } from '../src/api.js';
+import { getSessions, getSessionTopology } from '../src/api.js';
 
 let container;
 let root;
@@ -60,6 +64,14 @@ describe('Drawer (bound sessions)', () => {
     await waitForSessions();
     const names = [...container.querySelectorAll('.session-section-title')].map((n) => n.textContent);
     expect(names).toEqual(['main', 'server']);
+  });
+
+  it('requests topology only for expanded bound sessions', async () => {
+    getSessionTopology.mockClear();
+    localStorage.setItem('handmux.drawer.expanded-sessions', JSON.stringify({ main: true, server: false }));
+    await render();
+    await waitForSessions();
+    expect(getSessionTopology).toHaveBeenCalledWith(['$1']);
   });
 
   it('shows the empty state when nothing is bound', async () => {
@@ -115,6 +127,7 @@ describe('Drawer (bound sessions)', () => {
   });
 
   it('keeps the selected pane Inbox activity on the Window row', async () => {
+    getSessions.mockResolvedValueOnce([{ id: '$1', name: 'handmux' }]);
     getSessionTopology.mockResolvedValueOnce([
       { session: { id: '$1', name: 'handmux' }, windows: [{ id: '@1', name: 'main', panes: 2, activePaneId: '%1', paneList: [
         { id: '%1', command: 'zsh' },

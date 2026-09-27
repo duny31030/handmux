@@ -287,8 +287,13 @@ function parsePanes(value: unknown): TmuxPane[] {
 
 export const getSessions = async (): Promise<TmuxSession[]> => parseSessions(await req('/api/sessions'));
 export interface TmuxSessionTopology { session: TmuxSession; windows: TmuxWindow[] }
-export const getSessionTopology = async (): Promise<TmuxSessionTopology[]> => {
-  const value = await req('/api/sessions/topology');
+export const getSessionTopology = async (sessionIds?: readonly string[]): Promise<TmuxSessionTopology[]> => {
+  const query = sessionIds === undefined
+    ? ''
+    : sessionIds.length
+      ? `?${sessionIds.map((id) => `session=${encodeURIComponent(id)}`).join('&')}`
+      : '?sessionsOnly=1';
+  const value = await req(`/api/sessions/topology${query}`);
   if (!Array.isArray(value)) return [];
   return value.flatMap((row): TmuxSessionTopology[] => {
     const item = recordOf(row);
@@ -329,9 +334,24 @@ export const getWindowsForSessions = async (sessions: string[]): Promise<Record<
     !!row && typeof row === 'object' && typeof row.session === 'string' && Array.isArray(row.windows)
   )).map((row) => [row.session, parseWindows(row.windows)]));
 };
-export const getPanes = async (window: string): Promise<TmuxPane[]> => (
-  parsePanes(await req(`/api/panes?window=${encodeURIComponent(window)}`, { timeoutMs: 8_000 }))
-);
+const panesInFlight = new Map<string, Promise<TmuxPane[]>>();
+export interface PaneRequestOptions { fresh?: boolean }
+export const getPanes = (window: string, options: PaneRequestOptions = {}): Promise<TmuxPane[]> => {
+  // A read that follows a pane mutation must not reuse a poll that started
+  // before the mutation completed. Drop only the map entry; the older request
+  // may finish harmlessly while this call obtains the fresh snapshot.
+  if (options.fresh) panesInFlight.delete(window);
+  const existing = options.fresh ? undefined : panesInFlight.get(window);
+  if (existing) return existing;
+  let request: Promise<TmuxPane[]>;
+  request = req(`/api/panes?window=${encodeURIComponent(window)}`, { timeoutMs: 8_000 })
+    .then(parsePanes)
+    .finally(() => {
+      if (panesInFlight.get(window) === request) panesInFlight.delete(window);
+    });
+  panesInFlight.set(window, request);
+  return request;
+};
 export const getHistory = (
   pane: string,
   lines = 1_500,

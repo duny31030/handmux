@@ -115,8 +115,12 @@ export async function listPanes(windowId: string): Promise<TmuxPane[]> {
   });
 }
 
-export async function listAllPanes(): Promise<Array<TmuxPane & { windowId: string }>> {
-  const out = await runTmux(['list-panes', '-a', '-F', tmuxFormat(['window_id', 'pane_id', 'pane_index', 'pane_active', 'pane_width', 'pane_height', 'pane_current_command', 'pane_current_path', 'pane_left', 'pane_top', 'pane_tty'])]);
+export async function listAllPanes(sessionId?: string): Promise<Array<TmuxPane & { windowId: string }>> {
+  // `-s -t <session>` keeps topology reads scoped to the sessions the caller is
+  // expanding. The no-target form retains the existing all-sessions behavior for
+  // reconciliation callers.
+  const target = sessionId ? ['-s', '-t', sessionId] : ['-a'];
+  const out = await runTmux(['list-panes', ...target, '-F', tmuxFormat(['window_id', 'pane_id', 'pane_index', 'pane_active', 'pane_width', 'pane_height', 'pane_current_command', 'pane_current_path', 'pane_left', 'pane_top', 'pane_tty'])]);
   return parseTmuxRows(out, 11, 'pane').map(([windowId, id, index, active, width, height, command, cwd, left, top, tty]) => ({
     windowId, id, index: Number(index), active: active === '1', width: Number(width), height: Number(height), command, cwd, left: Number(left), top: Number(top), tty,
   }));

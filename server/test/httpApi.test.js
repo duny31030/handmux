@@ -101,6 +101,49 @@ describe('REST API', () => {
     expect(res.body).toEqual([{ id: '$0', name: 'main' }]);
   });
 
+  it('GET /sessions/topology scopes window and pane reads to requested sessions', async () => {
+    const listWindows = vi.fn(async (session) => [{
+      id: session === '$0' ? '@1' : '@2', name: session, active: true, panes: 1,
+    }]);
+    const listAllPanes = vi.fn(async (session) => [{
+      windowId: session === '$0' ? '@1' : '@2', id: session === '$0' ? '%1' : '%2',
+      index: 0, active: true, command: 'zsh', cwd: '/tmp', tty: '/dev/pts/1',
+    }]);
+    const cmds = {
+      ...baseCommands,
+      listSessions: vi.fn(async () => [{ id: '$0', name: 'main' }, { id: '$1', name: 'other' }]),
+      listWindows,
+      listAllPanes,
+    };
+    const res = await auth(request(appWith(cmds)).get('/api/sessions/topology?session=%241')).expect(200);
+    expect(res.body.map((row) => row.session)).toEqual([
+      { id: '$0', name: 'main' }, { id: '$1', name: 'other' },
+    ]);
+    expect(res.body[0].windows).toEqual([]);
+    expect(res.body[1].windows[0].paneList).toEqual([
+      expect.objectContaining({ id: '%2', index: 0 }),
+    ]);
+    expect(listWindows).toHaveBeenCalledTimes(1);
+    expect(listWindows).toHaveBeenCalledWith('$1');
+    expect(listAllPanes).toHaveBeenCalledTimes(1);
+    expect(listAllPanes).toHaveBeenCalledWith('$1');
+  });
+
+  it('GET /sessions/topology can refresh only the session roster', async () => {
+    const listWindows = vi.fn(async () => [{ id: '@1', name: 'main', active: true, panes: 1 }]);
+    const listAllPanes = vi.fn(async () => []);
+    const cmds = {
+      ...baseCommands,
+      listSessions: vi.fn(async () => [{ id: '$0', name: 'main' }]),
+      listWindows,
+      listAllPanes,
+    };
+    const res = await auth(request(appWith(cmds)).get('/api/sessions/topology?sessionsOnly=1')).expect(200);
+    expect(res.body).toEqual([{ session: { id: '$0', name: 'main' }, windows: [] }]);
+    expect(listWindows).not.toHaveBeenCalled();
+    expect(listAllPanes).not.toHaveBeenCalled();
+  });
+
   it('returns precise 404s when remembered tmux topology ids no longer exist', async () => {
     const missingSession = {
       ...baseCommands,

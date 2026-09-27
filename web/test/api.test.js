@@ -131,6 +131,32 @@ describe('api request timeout', () => {
     expect(await p).toBeInstanceOf(Error);
   });
 
+  it('shares concurrent pane lookups for the same window', async () => {
+    const resolvers = [];
+    const fetch = vi.fn(() => new Promise((resolve) => { resolvers.push(resolve); }));
+    vi.stubGlobal('fetch', fetch);
+    const first = getPanes('@1');
+    const second = getPanes('@1');
+    expect(fetch).toHaveBeenCalledOnce();
+    resolvers[0](jsonRes(200, [{ id: '%1', active: true }]));
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      [{ id: '%1', active: true }], [{ id: '%1', active: true }],
+    ]);
+  });
+
+  it('can bypass an older in-flight pane lookup after a pane mutation', async () => {
+    const resolvers = [];
+    const fetch = vi.fn(() => new Promise((resolve) => { resolvers.push(resolve); }));
+    vi.stubGlobal('fetch', fetch);
+    const old = getPanes('@1');
+    const fresh = getPanes('@1', { fresh: true });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    resolvers[1](jsonRes(200, [{ id: '%2', active: true }]));
+    resolvers[0](jsonRes(200, [{ id: '%1', active: true }]));
+    await expect(fresh).resolves.toEqual([{ id: '%2', active: true }]);
+    await expect(old).resolves.toEqual([{ id: '%1', active: true }]);
+  });
+
   it('returns the json on a normal response (timeout cleared, no abort)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonRes(200, { ansi: 'x', width: 80, height: 24 })));
     await expect(getHistory('%1')).resolves.toEqual({ ansi: 'x', width: 80, height: 24 });

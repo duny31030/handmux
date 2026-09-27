@@ -9,7 +9,7 @@ import { t } from '../i18n';
 import { relTime, VIEW_LABEL } from '../inbox.js';
 import type { InboxView } from '../inbox.js';
 import WorkspaceRecoveryCard from './WorkspaceRecoveryCard.jsx';
-import { getPanes, getSessionTopology } from '../api.js';
+import { getPanes, getSessions, getSessionTopology } from '../api.js';
 import { getLastPane } from '../storage.js';
 import type { TmuxPane, TmuxSession, TmuxWindow } from '../api.js';
 import type { MouseEvent } from 'react';
@@ -24,6 +24,10 @@ const EMPTY_SESSION_INBOX: Readonly<Record<string, InboxView | null | undefined>
 const EMPTY_PANES: readonly TmuxPane[] = [];
 const CIRCLED_PANES = '①②③④⑤⑥⑦⑧⑨';
 const paneSeq = (index: number): string => CIRCLED_PANES[index] ?? String(index + 1);
+const paneShape = (pane: TmuxPane): string => [
+  pane.id, pane.index, pane.active, pane.command,
+  pane.left, pane.top, pane.width, pane.height,
+].map((value) => String(value ?? '')).join('\0');
 const INBOX_VIEW_RANK: Record<InboxView, number> = { working: 1, done: 2, needs: 3, error: 4 };
 
 function nonDefaultPaneInboxView(
@@ -489,31 +493,59 @@ export default function Drawer({
           .map((name) => [name, cached.windows[name]!]));
         let fetchedAt = Object.fromEntries(names.filter((name) => windows[name])
           .map((name) => [name, cached.fetchedAt[name]!]));
-        const targets = expanded.filter((name) => ids[name]
-          && (!windows[name] || now - (fetchedAt[name] || 0) >= 5000 || orderChanged));
-        if (sessionsStale || targets.length) {
-          const topology = await getSessionTopology();
+        if (sessionsStale) {
+          const sessions = await getSessions();
           if (!alive) return;
-          ids = Object.fromEntries(topology.flatMap(({ session }) => (
+          ids = Object.fromEntries(sessions.flatMap((session) => (
             names.includes(session.name) ? [[session.name, session.id] as const] : []
           )));
+        }
+        const targets = expanded.filter((name) => ids[name]
+          && (sessionsStale || !windows[name] || now - (fetchedAt[name] || 0) >= 5000 || orderChanged));
+        if (targets.length) {
+          // The topology route always returns the full session roster, but only
+          // reads windows/panes for these expanded session ids.
+          const requestedIds = targets.flatMap((name) => ids[name] ? [ids[name]!] : []);
+          const topology = await getSessionTopology(requestedIds);
+          if (!alive) return;
+          const requestedIdSet = new Set(requestedIds);
           windows = Object.fromEntries(names.flatMap((name) => {
             const row = topology.find((candidate) => candidate.session.name === name);
-            return row ? [[name, row.windows] as const] : [];
+            if (!row || !requestedIdSet.has(row.session.id)) return [];
+            return [[name, row.windows] as const];
           }));
           const fetchedNow = Date.now();
           fetchedAt = Object.fromEntries(names.flatMap((name) => (
             windows[name] ? [[name, fetchedNow] as const] : []
           )));
-          for (const row of topology) {
-            for (const window of row.windows) {
-              if (window.paneList) {
-                setWindowPanes((current) => (
-                  current[window.id] ? current : { ...current, [window.id]: window.paneList! }
-                ));
-              }
+          const paneSnapshots = topology.flatMap((row) => row.windows).flatMap((window) => (
+            window.paneList ? [{ id: window.id, panes: window.paneList }] : []
+          ));
+          setWindowPanes((current) => {
+            let next = current;
+            for (const snapshot of paneSnapshots) {
+              const previous = current[snapshot.id] || [];
+              const previousById = new Map(previous.map((pane) => [pane.id, pane] as const));
+              const merged = snapshot.panes.map((pane) => {
+                const old = previousById.get(pane.id);
+                return old && Object.hasOwn(old, 'agent') && old.agent !== undefined && !Object.hasOwn(pane, 'agent')
+                  ? { ...pane, agent: old.agent } : pane;
+              });
+              const shapeChanged = previous.length !== merged.length
+                || previous.some((pane, index) => paneShape(pane) !== paneShape(merged[index]!));
+              const agentChanged = merged.some((pane) => {
+                const old = previousById.get(pane.id);
+                return Object.hasOwn(pane, 'agent') && old?.agent !== pane.agent;
+              });
+              if (!shapeChanged && !agentChanged) continue;
+              if (next === current) next = { ...current };
+              next[snapshot.id] = merged;
+              // A topology change invalidates the enriched /panes snapshot;
+              // the next picker open will refresh Agent metadata.
+              paneDetailsLoadedRef.current.delete(snapshot.id);
             }
-          }
+            return next;
+          });
         }
         // Publish one complete outline. Never reveal parent rows while the initial
         // expanded children are still in flight; retain the previous outline on refresh.
