@@ -53,6 +53,63 @@ describe('useAgentSessionControl', () => {
     expect(updateAgentModelControl).not.toHaveBeenCalled();
   });
 
+  it('keeps a cached run visible while a replacement run loads', async () => {
+    const replacementRead = deferred<AgentModelControlSnapshot>();
+    vi.mocked(readAgentModelControl)
+      .mockResolvedValueOnce(first)
+      .mockReturnValueOnce(replacementRead.promise)
+      .mockResolvedValue(first);
+    const { result, rerender } = renderHook(
+      ({ active }) => useAgentSessionControl(active),
+      { initialProps: { active: run } },
+    );
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    rerender({ active: { ...run, runId: 'run-2' } });
+    await waitFor(() => expect(readAgentModelControl).toHaveBeenCalledTimes(2));
+    expect(result.current.status).toBe('loading');
+    expect(result.current.modelControl).toBeNull();
+
+    rerender({ active: run });
+    expect(result.current.status).toBe('ready');
+    expect(result.current.modelControl).toEqual(first);
+    await act(async () => {
+      replacementRead.resolve(updated);
+      await replacementRead.promise;
+    });
+  });
+
+  it('updates the cached snapshot when a background refresh finds a change', async () => {
+    const refreshRead = deferred<AgentModelControlSnapshot>();
+    vi.mocked(readAgentModelControl)
+      .mockResolvedValueOnce(first)
+      .mockReturnValueOnce(refreshRead.promise);
+    const { result } = renderHook(() => useAgentSessionControl(run));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    act(() => { void result.current.refresh(); });
+    await waitFor(() => expect(readAgentModelControl).toHaveBeenCalledTimes(2));
+    expect(result.current.modelControl).toEqual(first);
+    await act(async () => {
+      refreshRead.resolve(updated);
+      await refreshRead.promise;
+    });
+    await waitFor(() => expect(result.current.modelControl).toEqual(updated));
+    expect(result.current.status).toBe('ready');
+  });
+
+  it('keeps the cached snapshot when a background refresh fails', async () => {
+    vi.mocked(readAgentModelControl)
+      .mockResolvedValueOnce(first)
+      .mockRejectedValueOnce(new Error('temporary failure'));
+    const { result } = renderHook(() => useAgentSessionControl(run));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    act(() => { void result.current.refresh(); });
+    await waitFor(() => expect(result.current.status).toBe('error'));
+    expect(result.current.modelControl).toEqual(first);
+  });
+
   it('serializes writes so a double activation cannot dispatch twice', async () => {
     vi.mocked(readAgentModelControl).mockResolvedValue(first);
     const pending = deferred<AgentModelControlSnapshot>();

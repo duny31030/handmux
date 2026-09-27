@@ -21,6 +21,14 @@ export interface AgentSessionControlController {
 
 const message = (): string => 'session_control_unavailable';
 
+function cacheKey(run: AgentRunRef): string {
+  return JSON.stringify([run.agentId, run.paneId, run.runId, run.sessionId ?? null]);
+}
+
+function isCurrentRun(current: AgentRunRef | null, expected: AgentRunRef): boolean {
+  return current !== null && cacheKey(current) === cacheKey(expected);
+}
+
 export function useAgentSessionControl(
   run: AgentRunRef | null,
   onAuthFail?: () => void,
@@ -32,6 +40,8 @@ export function useAgentSessionControl(
   const generation = useRef(0);
   const operation = useRef(0);
   const writeToken = useRef(0);
+  // Keep one snapshot per exact run identity; a cached null means this run has no control.
+  const snapshots = useRef(new Map<string, AgentModelControlSnapshot | null>());
   const savingRef = useRef(false);
   const runRef = useRef(run);
   const modelControlRef = useRef(modelControl);
@@ -40,22 +50,23 @@ export function useAgentSessionControl(
   modelControlRef.current = modelControl;
   authRef.current = onAuthFail;
 
-  const load = useCallback(async (refresh: boolean): Promise<void> => {
+  const load = useCallback(async (refresh: boolean, silent = false): Promise<void> => {
     const active = runRef.current;
     if (!active || savingRef.current) return;
     const requestGeneration = generation.current;
     const requestOperation = ++operation.current;
     setError(null);
-    setStatus('loading');
+    if (!silent) setStatus('loading');
     try {
       const next = await readAgentModelControl(active, { refresh });
       if (generation.current !== requestGeneration || operation.current !== requestOperation
-        || runRef.current?.runId !== active.runId) return;
+        || !isCurrentRun(runRef.current, active)) return;
+      snapshots.current.set(cacheKey(active), next);
       setModelControl(next);
       setStatus(next ? 'ready' : 'unavailable');
     } catch (cause) {
       if (generation.current !== requestGeneration || operation.current !== requestOperation
-        || runRef.current?.runId !== active.runId) return;
+        || !isCurrentRun(runRef.current, active)) return;
       if (cause instanceof UnauthorizedError) authRef.current?.();
       setError(message());
       setStatus('error');
@@ -67,16 +78,18 @@ export function useAgentSessionControl(
     operation.current += 1;
     writeToken.current += 1;
     savingRef.current = false;
-    setModelControl(null);
+    const cached = run ? snapshots.current.get(cacheKey(run)) : undefined;
+    setModelControl(cached === undefined ? null : cached);
     setError(null);
     setSaving(false);
     if (!run) {
       setStatus('idle');
       return undefined;
     }
-    void load(false);
+    setStatus(cached === undefined ? 'loading' : cached ? 'ready' : 'unavailable');
+    void load(false, cached !== undefined);
     return () => { generation.current += 1; };
-  }, [run?.runId, load]);
+  }, [run?.agentId, run?.paneId, run?.runId, run?.sessionId, load]);
 
   const update = useCallback(async (patch: AgentModelControlPatch): Promise<void> => {
     const active = runRef.current;
@@ -91,19 +104,20 @@ export function useAgentSessionControl(
     try {
       const next = await updateAgentModelControl(active, patch);
       if (generation.current !== requestGeneration || operation.current !== requestOperation
-        || runRef.current?.runId !== active.runId) return;
+        || !isCurrentRun(runRef.current, active)) return;
+      snapshots.current.set(cacheKey(active), next);
       setModelControl(next);
       setStatus('ready');
     } catch (cause) {
       if (generation.current !== requestGeneration || operation.current !== requestOperation
-        || runRef.current?.runId !== active.runId) return;
+        || !isCurrentRun(runRef.current, active)) return;
       if (cause instanceof UnauthorizedError) authRef.current?.();
       setError(message());
       throw cause;
     } finally {
       if (writeToken.current === requestWriteToken) savingRef.current = false;
       if (generation.current === requestGeneration && writeToken.current === requestWriteToken
-        && runRef.current?.runId === active.runId) {
+        && isCurrentRun(runRef.current, active)) {
         setSaving(false);
       }
     }
