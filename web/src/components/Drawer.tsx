@@ -184,6 +184,7 @@ export default function Drawer({
   const [sessionsReady, setSessionsReady] = useState(false);
   const [topologyError, setTopologyError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
+  const topologyInFlightRef = useRef(new Map<string, Promise<TmuxWindow[]>>());
   const topologyCache = useRef<{
     ids: Record<string, string>; sessionsAt: number;
     windows: Record<string, TmuxWindow[]>; fetchedAt: Record<string, number>; orderVersion: number;
@@ -475,6 +476,22 @@ export default function Drawer({
 
   const boundKey = JSON.stringify(bound);
   const expandedKey = JSON.stringify([...expandedSessions]);
+  const requestSessionWindows = (sessionIds: readonly string[]): Promise<TmuxWindow[][]> => {
+    const uniqueIds = [...new Set(sessionIds)];
+    const missingIds = uniqueIds.filter((id) => !topologyInFlightRef.current.has(id));
+    if (missingIds.length) {
+      const batch = getSessionTopology(missingIds);
+      for (const id of missingIds) {
+        const rowPromise = batch.then((rows) => rows.find((row) => row.session.id === id)?.windows || []);
+        topologyInFlightRef.current.set(id, rowPromise);
+        const clear = (): void => {
+          if (topologyInFlightRef.current.get(id) === rowPromise) topologyInFlightRef.current.delete(id);
+        };
+        rowPromise.then(clear, clear);
+      }
+    }
+    return Promise.all(uniqueIds.map((id) => topologyInFlightRef.current.get(id)!));
+  };
   useEffect(() => {
     if (rootView !== 'session' || !open) return;
     let alive = true;
@@ -503,22 +520,17 @@ export default function Drawer({
         const targets = expanded.filter((name) => ids[name]
           && (sessionsStale || !windows[name] || now - (fetchedAt[name] || 0) >= 5000 || orderChanged));
         if (targets.length) {
-          // The topology route always returns the full session roster, but only
-          // reads windows/panes for these expanded session ids.
           const requestedIds = targets.flatMap((name) => ids[name] ? [ids[name]!] : []);
-          const topology = await getSessionTopology(requestedIds);
+          const windowRows = await requestSessionWindows(requestedIds);
           if (!alive) return;
-          const requestedIdSet = new Set(requestedIds);
-          windows = Object.fromEntries(names.flatMap((name) => {
-            const row = topology.find((candidate) => candidate.session.name === name);
-            if (!row || !requestedIdSet.has(row.session.id)) return [];
-            return [[name, row.windows] as const];
-          }));
           const fetchedNow = Date.now();
-          fetchedAt = Object.fromEntries(names.flatMap((name) => (
-            windows[name] ? [[name, fetchedNow] as const] : []
-          )));
-          const paneSnapshots = topology.flatMap((row) => row.windows).flatMap((window) => (
+          windows = { ...windows };
+          fetchedAt = { ...fetchedAt };
+          targets.forEach((name, index) => {
+            windows[name] = windowRows[index] || [];
+            fetchedAt[name] = fetchedNow;
+          });
+          const paneSnapshots = windowRows.flatMap((rows) => rows).flatMap((window) => (
             window.paneList ? [{ id: window.id, panes: window.paneList }] : []
           ));
           setWindowPanes((current) => {

@@ -74,6 +74,24 @@ describe('Drawer (bound sessions)', () => {
     expect(getSessionTopology).toHaveBeenCalledWith(['$1']);
   });
 
+  it('keeps another expanded Session visible while a newly expanded one loads', async () => {
+    getSessionTopology.mockClear();
+    getSessionTopology.mockImplementation(async (ids) => ids.map((id) => ({
+      session: { id, name: id === '$1' ? 'main' : 'server' },
+      windows: [{ id: id === '$1' ? '@1' : '@2', name: id === '$1' ? 'main-window' : 'server-window', panes: 1 }],
+    })));
+    localStorage.setItem('handmux.drawer.expanded-sessions', JSON.stringify({ main: false, server: true }));
+    await render();
+    await waitForSessions();
+    expect(container.querySelector('[data-window-id="@2"]')).not.toBeNull();
+
+    const main = [...container.querySelectorAll('.session-section-title')].find((node) => node.textContent === 'main');
+    await act(async () => { main.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    await vi.waitFor(() => expect(container.querySelector('[data-window-id="@1"]')).not.toBeNull());
+    expect(container.querySelector('[data-window-id="@2"]')).not.toBeNull();
+    expect(getSessionTopology).toHaveBeenLastCalledWith(['$1']);
+  });
+
   it('shows the empty state when nothing is bound', async () => {
     await render({ bound: [], currentSessionName: null });
     expect(container.querySelector('.session-section-title')).toBeNull();
