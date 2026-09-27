@@ -14,6 +14,7 @@ All notable changes to handmux. Format follows [Keep a Changelog](https://keepac
 - 修复 Claude 后台 Shell 长时间运行时普通消息一直排队、任务不结束就无法发送的问题。
 - 修复切换 window 后立即打开聊天键盘时，新窗口内容加载完成会把输入框收起的问题。
 - 修复抽屉收件箱状态与分屏落点不一致的问题；点击带状态的 Window 会直接定位到对应 pane，分屏地图也会显示同一状态点。
+- 修复展开或收起会话时刷新其他会话，导致窗口列表暂时消失的问题。
 
 ## [0.32.0] - 2026-09-24
 
