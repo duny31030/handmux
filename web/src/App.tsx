@@ -209,7 +209,25 @@ interface UpdateInfo {
   current?: string | null;
   latest?: string | null;
   updateAvailable?: boolean;
+  instanceId?: string;
   whatsNew?: { version: string; zh?: string; en?: string }[];
+}
+
+const SERVER_VERSION_POLL_MS = 60_000;
+
+function versionParts(value: unknown): [number, number, number] | null {
+  const match = String(value || '').trim().match(/^v?(\d+)\.(\d+)\.(\d+)/);
+  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+}
+
+function isVersionNewer(left: unknown, right: unknown): boolean {
+  const a = versionParts(left);
+  const b = versionParts(right);
+  if (!a || !b) return false;
+  for (let i = 0; i < 3; i += 1) {
+    if (a[i] !== b[i]) return a[i] > b[i];
+  }
+  return false;
 }
 
 interface WorkspaceProtection {
@@ -439,6 +457,8 @@ export default function App() {
   const [changelogOpen, setChangelogOpen] = useState(false); // "what's new" sheet open
   const [clSeen, setClSeen] = useState(getChangelogSeen); // latest changelog id the user has opened
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null); // { current, latest, updateAvailable } — npm update hint (checked once per launch)
+  const [serverReloadRequired, setServerReloadRequired] = useState(false);
+  const serverInstanceIdRef = useRef<string | null>(null);
   const [verSeen, setVerSeen] = useState(getVersionSeen); // npm "latest" already acknowledged by opening Settings
   const [seen, setSeen] = useState(getInboxSeen); // pane → last-viewed ts (inbox read state)
   const [readTs, setReadTs] = useState(getInboxReadTs); // server-ts high-water mark for done history (null=unset)
@@ -705,11 +725,40 @@ export default function App() {
     return () => window.removeEventListener('keydown', onPageKeyDown, true);
   }, [desktopInput, terminalOverlayOpen, lens, current?.paneId]);
 
-  // Update check: once per app launch (not polled), ask the server whether the installed CLI is behind the
-  // latest npm release. The result lights the gear's dot and drives the "run `handmux update`" hint in Settings.
+  // Check the installed version and process identity on launch and while the app is visible. The process
+  // identity catches a backend restart even when its public version did not change; a newer server version
+  // catches an upgrade before the refreshed web bundle has been loaded.
   useEffect(() => {
-    if (needToken) return;
-    getServerVersion().then(setUpdateInfo).catch(() => { /* best-effort; no hint on failure */ });
+    if (needToken) {
+      serverInstanceIdRef.current = null;
+      return undefined;
+    }
+    let active = true;
+    let inFlight = false;
+    const check = (): void => {
+      if (!active || document.visibilityState === 'hidden' || inFlight) return;
+      inFlight = true;
+      void getServerVersion().then((info) => {
+        if (!active) return;
+        const previousInstanceId = serverInstanceIdRef.current;
+        if (previousInstanceId && info.instanceId && previousInstanceId !== info.instanceId) {
+          setServerReloadRequired(true);
+        }
+        if (info.instanceId) serverInstanceIdRef.current = info.instanceId;
+        if (isVersionNewer(info.current, LATEST_RELEASE)) setServerReloadRequired(true);
+        setUpdateInfo(info);
+      }).catch(() => { /* best-effort; no hint on failure */ })
+        .finally(() => { inFlight = false; });
+    };
+    const onVisibilityChange = (): void => { if (document.visibilityState === 'visible') check(); };
+    check();
+    const timer = window.setInterval(check, SERVER_VERSION_POLL_MS);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [needToken]);
 
   // Device logout is an actual server revocation; a network failure must not look like unbinding.
@@ -2968,6 +3017,17 @@ export default function App() {
         voiceMode={serverConfig?.asrMode ?? null}
         voiceFillerFilterSupported={serverConfig?.asrFillerFilter ?? false}
       />
+      {serverReloadRequired && (
+        <div className="server-reload-banner" role="alert">
+          <div className="server-reload-banner-copy">
+            <strong>{t('app.serverUpdatedTitle')}</strong>
+            <span>{t('app.serverUpdatedHint')}</span>
+          </div>
+          <button type="button" onClick={() => window.location.reload()}>
+            {t('app.serverUpdatedReload')}
+          </button>
+        </div>
+      )}
       <Changelog open={changelogOpen} onClose={() => setChangelogOpen(false)} />
       <InboxPage
         open={notifInboxOpen}

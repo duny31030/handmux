@@ -4,6 +4,10 @@ All notable changes to handmux. Format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Fixed
+
+- 修复后端升级或重启后已打开的前端页面没有提示刷新的问题。
+
 ## [0.32.1] - 2026-09-28
 
 ### Changed

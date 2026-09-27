@@ -522,6 +522,7 @@ export interface ServerVersionInfo {
   current?: string | null;
   latest?: string | null;
   updateAvailable?: boolean;
+  instanceId?: string;
   whatsNew?: { version: string; zh?: string; en?: string }[];
 }
 
@@ -539,6 +540,7 @@ export const getServerVersion = async (): Promise<ServerVersionInfo> => {
     ...(typeof value.current === 'string' || value.current === null ? { current: value.current } : {}),
     ...(typeof value.latest === 'string' || value.latest === null ? { latest: value.latest } : {}),
     ...(typeof value.updateAvailable === 'boolean' ? { updateAvailable: value.updateAvailable } : {}),
+    ...(typeof value.instanceId === 'string' ? { instanceId: value.instanceId } : {}),
     ...(whatsNew ? { whatsNew } : {}),
   } : {};
 };

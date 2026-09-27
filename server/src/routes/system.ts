@@ -86,6 +86,10 @@ const PKG_VERSION = (() => {
   catch { return null; }
 })();
 
+// Changes whenever the running server process starts. The web client uses this to notice a backend
+// restart (including an upgrade that kept the public version unchanged) while the page is still open.
+const SERVER_INSTANCE_ID = `${Date.now().toString(36)}-${process.pid}`;
+
 export function systemRoutes({
   commands, claudeEvents, agentRuntime, asrEnv, shortcuts, home, stateFile, previewDomain,
   agentIntegrationContext, shortcutState,
@@ -145,7 +149,7 @@ export function systemRoutes({
     const whatsNew = (updateAvailable && Array.isArray(cache?.whatsNew))
       ? cache.whatsNew.filter((e) => e && e.version && isNewer(e.version, PKG_VERSION))
       : [];
-    return res.json({ current: PKG_VERSION, latest, updateAvailable, whatsNew });
+    return res.json({ current: PKG_VERSION, latest, updateAvailable, whatsNew, instanceId: SERVER_INSTANCE_ID });
   });
 
   // One-tap enable from the phone installs Claude Code hooks only. Codex uses App Server and must never
