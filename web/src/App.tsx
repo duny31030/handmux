@@ -376,6 +376,12 @@ export default function App() {
   const windowSwitchRef = useRef(0); // only the newest async pane lookup may finish a window switch
   const sessionSelectionRef = useRef(0);
   const prefetchedPanesRef = useRef(new Map<string, HostPane[]>());
+  // WindowBar switches and the topology poll can start together. Share the same pane request so the
+  // switch has one authoritative result instead of racing two fetches for the same window.
+  const paneRequestsRef = useRef(new Map<string, Promise<HostPane[]>>());
+  // Keep a remembered pane from being overwritten by the temporary active-pane hint while its lookup
+  // is in flight. The ref is cleared when the lookup confirms or replaces that pane.
+  const pendingWindowPaneRef = useRef<{ windowId: string; initialPaneId: string; rememberedPaneId: string | null; request: Promise<HostPane[]> } | null>(null);
   const topologyPollKeyRef = useRef<string | null>(null);
   const topologyRecoveryRef = useRef<Promise<void> | null>(null);
   const [booting, setBooting] = useState(true);
@@ -1107,26 +1113,41 @@ export default function App() {
       || window.activePaneId
       || structuralPanes?.[0]?.id
       || null;
-    // Commit the user's choice before touching the network. With activePaneId supplied by the existing
+    // Commit the user's choice before the pane request settles. With activePaneId supplied by the existing
     // window listing, Terminal mounts now and shows its own loading surface while pane metadata catches up.
     if (!immediatePaneId || !current) return null;
     setControlsRevision((revision) => revision + 1);
-    if (structuralPanes?.length && structuralPanes.every((pane) => Object.hasOwn(pane, 'agent'))) {
-      prefetchedPanesRef.current.set(window.id, structuralPanes);
-    }
+    const enrichedStructuralPanes = structuralPanes?.length && structuralPanes.every((pane) => Object.hasOwn(pane, 'agent'))
+      ? structuralPanes : null;
+    if (enrichedStructuralPanes) prefetchedPanesRef.current.set(window.id, enrichedStructuralPanes);
+    const paneRequest = enrichedStructuralPanes ? Promise.resolve(enrichedStructuralPanes) : getPanes(window.id);
+    paneRequestsRef.current.set(window.id, paneRequest);
+    pendingWindowPaneRef.current = { windowId: window.id, initialPaneId: immediatePaneId, rememberedPaneId, request: paneRequest };
     setCurrent((c) => (c ? { ...c, window, panes: structuralPanes || [], paneId: immediatePaneId } : c));
-    remember({ sessionId: current.session.id, windowId: window.id, paneId: immediatePaneId });
     try {
-      const panes = await getPanes(window.id);
+      const panes = await paneRequest;
       if (switchEpoch !== windowSwitchRef.current) return null;
-      if (!panes.length) return;
-      const paneId = pickId(panes, getLastPane(window.id));
+      if (!panes.length) {
+        if (pendingWindowPaneRef.current?.windowId === window.id
+          && pendingWindowPaneRef.current.request === paneRequest) pendingWindowPaneRef.current = null;
+        return;
+      }
+      const paneId = pickId(panes, rememberedPaneId);
+      if (pendingWindowPaneRef.current?.windowId === window.id
+        && pendingWindowPaneRef.current.request === paneRequest) pendingWindowPaneRef.current = null;
+      // If the topology poll starts after this request settles, let it consume the same result instead
+      // of issuing a second lookup between the switch commit and its first tick.
+      prefetchedPanesRef.current.set(window.id, panes);
       setCurrent((c) => (c && c.window.id === window.id ? { ...c, window, panes, paneId } : c));
       remember({ sessionId: current.session.id, windowId: window.id, paneId });
       return paneId; // callers (管理分屏) need the now-current pane to open its manage sheet
     } catch (e) {
       handledAuth(e);
+      if (pendingWindowPaneRef.current?.windowId === window.id
+        && pendingWindowPaneRef.current.request === paneRequest) pendingWindowPaneRef.current = null;
       return null;
+    } finally {
+      if (paneRequestsRef.current.get(window.id) === paneRequest) paneRequestsRef.current.delete(window.id);
     }
   }, [current, onAuthFail]);
 
@@ -1498,6 +1519,7 @@ export default function App() {
   }, []);
 
   const selectPane = useCallback((paneId: string) => {
+    pendingWindowPaneRef.current = null;
     setControlsRevision((revision) => revision + 1);
     setCurrent((c) => {
       if (!c) return c;
@@ -1542,6 +1564,10 @@ export default function App() {
   // Persist automatic pane replacement as well as explicit navigation. Without this, a reload after an
   // externally closed pane would briefly retry the same stale id before the topology poll corrected it.
   useEffect(() => {
+    const pending = pendingWindowPaneRef.current;
+    if (pending && current
+      && pending.windowId === current.window.id
+      && pending.initialPaneId === current.paneId) return;
     if (current) remember({
       sessionId: current.session.id,
       windowId: current.window.id,
@@ -2773,9 +2799,10 @@ export default function App() {
       const windowId = current?.window?.id;
       const sessionId = current?.session?.id;
       if (!windowId || !sessionId) return null;
-      const prefetched = prefetchedPanesRef.current.get(windowId);
+      const pending = paneRequestsRef.current.get(windowId);
+      const prefetched = pending ? null : prefetchedPanesRef.current.get(windowId);
       if (prefetched) prefetchedPanesRef.current.delete(windowId);
-      const panes = prefetched || await getPanes(windowId);
+      const panes = pending ? await pending : (prefetched || await getPanes(windowId));
       const pollKey = `${sessionId}\0${windowId}`;
       const firstPoll = topologyPollKeyRef.current !== pollKey;
       if (firstPoll) topologyPollKeyRef.current = pollKey;
