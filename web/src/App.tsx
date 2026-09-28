@@ -881,11 +881,13 @@ export default function App() {
     const paneId = (target?.pane && panes.some((p) => p.id === target.pane))
       ? target.pane
       : pickId(panes, getLastPane(selectedWindow.id));
+    const hydratedWindow = { ...selectedWindow, paneList: panes.map((pane) => ({ ...pane })) };
+    const hydratedWindows = windows.map((window) => window.id === hydratedWindow.id ? hydratedWindow : window);
     if (structuralPanes?.length && structuralPanes.every((pane) => Object.hasOwn(pane, 'agent'))) {
       prefetchedPanesRef.current.set(selectedWindow.id, structuralPanes);
     }
     setControlsRevision((revision) => revision + 1);
-    setCurrent({ session, windows, window: selectedWindow, panes, paneId });
+    setCurrent({ session, windows: hydratedWindows, window: hydratedWindow, panes, paneId });
     remember({ sessionId: session.id, windowId: selectedWindow.id, paneId });
     writeSessionHash(session.name);
     return true;
@@ -1138,7 +1140,12 @@ export default function App() {
       // If the topology poll starts after this request settles, let it consume the same result instead
       // of issuing a second lookup between the switch commit and its first tick.
       prefetchedPanesRef.current.set(window.id, panes);
-      setCurrent((c) => (c && c.window.id === window.id ? { ...c, window, panes, paneId } : c));
+      const hydratedWindow = { ...window, paneList: panes.map((pane) => ({ ...pane })) };
+      setCurrent((c) => {
+        if (!c || c.window.id !== window.id) return c;
+        const windows = c.windows.map((item) => item.id === window.id ? hydratedWindow : item);
+        return { ...c, windows, window: hydratedWindow, panes, paneId };
+      });
       remember({ sessionId: current.session.id, windowId: window.id, paneId });
       return paneId; // callers (管理分屏) need the now-current pane to open its manage sheet
     } catch (e) {
@@ -1535,12 +1542,16 @@ export default function App() {
   const refreshPanes = useCallback((windowId: string, panes: HostPane[]) => {
     setCurrent((c) => {
       if (!c) return c;
-      const windows = c.windows.map((w) => (w.id === windowId ? { ...w, panes: panes.length } : w));
+      const windows = c.windows.map((w) => (w.id === windowId
+        ? { ...w, panes: panes.length, paneList: panes.map((pane) => ({ ...pane })) }
+        : w));
       if (c.window.id !== windowId) return { ...c, windows };
+      const refreshedWindow = windows.find((w) => w.id === windowId) || c.window;
+      const mergedPanes = mergePaneAgents(c.panes, panes);
       const paneId = panes.some((pane) => pane.id === c.paneId) || !panes.length
         ? c.paneId
         : pickId(panes, getLastPane(windowId));
-      return { ...c, windows, panes: mergePaneAgents(c.panes, panes), paneId };
+      return { ...c, windows, window: refreshedWindow, panes: mergedPanes, paneId };
     });
   }, []);
 
