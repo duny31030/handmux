@@ -140,6 +140,7 @@ interface DrawerProps {
   onMoveSession?: (sessionName: string, direction: 'up' | 'down') => void;
   windowOrderVersion?: number;
   revealRevision?: number;
+  boundRevealRevision?: number;
   rootView?: 'session' | 'project';
   sessionInboxViews?: Readonly<Record<string, InboxView | null | undefined>>;
   paneInboxViews?: Readonly<Record<string, InboxView | null | undefined>>;
@@ -168,7 +169,7 @@ export default function Drawer({
   orphans = [], onTakeoverRequest,
   recoveryPlan = null, recoveryOperation = null, onOpenRecovery = () => {},
   projectTaskBeta = false, onSwitchProject = () => {}, onSwitchSession = () => {}, onOpenSettings = () => {}, onNewWindow = () => {}, onManageWindow = () => {}, onRenameSession = () => {}, onDeleteSession = () => {}, onMoveSession = () => {}, windowOrderVersion = 0, rootView = 'session',
-  revealRevision = 0, sessionInboxViews = EMPTY_SESSION_INBOX,
+  revealRevision = 0, boundRevealRevision = 0, sessionInboxViews = EMPTY_SESSION_INBOX,
   windowAgents = EMPTY_WINDOW_AGENTS, paneInboxViews = EMPTY_SESSION_INBOX,
 }: DrawerProps) {
   const [orphOpen, setOrphOpen] = useState(false);
@@ -197,6 +198,7 @@ export default function Drawer({
   const drawerScrollRef = useRef<HTMLDivElement>(null);
   const drawerScrollContentRef = useRef<HTMLDivElement>(null);
   const drawerRevealKeyRef = useRef<string | null>(null);
+  const boundRevealKeyRef = useRef<number | null>(null);
   const swipeRef = useRef<{ startX: number | null; startY: number; active: boolean; baseOpen: boolean; touchId: number | null }>({ startX: null, startY: 0, active: false, baseOpen: open, touchId: null });
   const swipeOffsetRef = useRef(0);
   const [swipeOffset, setSwipeOffset] = useState<number | null>(null);
@@ -473,6 +475,24 @@ export default function Drawer({
     target?.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
     if (target) drawerRevealKeyRef.current = revealKey;
   }, [open, rootView, sessionsReady, currentSessionName, currentWindowId, revealRevision, sessionWindows, expandedPreferences]);
+
+  // A newly pinned session is appended to the list. Keep the drawer open and move to its end only
+  // when that new row (or its loaded window list) falls outside the visible scroll region.
+  useLayoutEffect(() => {
+    if (!open || rootView !== 'session' || !sessionsReady || boundRevealRevision === 0) return;
+    const latestName = bound[bound.length - 1];
+    if (!latestName) return;
+    const scroll = drawerScrollRef.current;
+    const section = Array.from(scroll?.querySelectorAll<HTMLElement>('.session-section') || [])
+      .find((node) => node.querySelector('.session-section-label')?.textContent === latestName);
+    if (!scroll || !section) return;
+    if (boundRevealKeyRef.current === boundRevealRevision) return;
+    const rect = section.getBoundingClientRect();
+    const scrollRect = scroll.getBoundingClientRect();
+    const isVisible = rect.top >= scrollRect.top && rect.bottom <= scrollRect.bottom;
+    if (!isVisible) scroll.scrollTo({ top: scroll.scrollHeight, behavior: 'smooth' });
+    boundRevealKeyRef.current = boundRevealRevision;
+  }, [open, rootView, sessionsReady, boundRevealRevision, bound, sessionWindows[bound[bound.length - 1] || '']]);
 
   const boundKey = JSON.stringify(bound);
   const expandedKey = JSON.stringify([...expandedSessions]);

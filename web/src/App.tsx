@@ -363,6 +363,7 @@ export default function App() {
   const [bound, setBound] = useState(getBoundSessions); // session names pinned on this device
   const [drawerWindowOrderVersion, setDrawerWindowOrderVersion] = useState(0);
   const [drawerRevealRevision, setDrawerRevealRevision] = useState(0);
+  const [drawerBoundRevealRevision, setDrawerBoundRevealRevision] = useState(0);
   const [favorites, setFavorites] = useState(getFavorites); // global favorite commands
   const [recent, setRecent] = useState<string[]>([]); // current session's recent commands (keyed by session name)
   const [current, setCurrent] = useState<CurrentWorkspace | null>(null); // { session, windows, window, panes, paneId }
@@ -1473,7 +1474,15 @@ export default function App() {
     setInboxReadTs(m); setReadTs(m);
   }, [states, seen, readTs, markCanonicalTerminalRead]);
 
-  // Save a validated name locally, then open it immediately so "绑定上" is usable right away.
+  // Existing sessions are pinned to the drawer without changing the active workspace.
+  const bindExistingSession = useCallback((name: string) => {
+    setBound(addBoundSession(name));
+    reportBound();
+    setDrawerBoundRevealRevision((revision) => revision + 1);
+    setBindOpen(false);
+  }, [reportBound]);
+
+  // A newly created session is live and opens immediately.
   const bindSession = useCallback((name: string) => {
     setBound(addBoundSession(name));
     reportBound();
@@ -3012,6 +3021,7 @@ export default function App() {
         {...(current ? { currentPanes: current.panes } : {})}
         bound={bound}
         revealRevision={drawerRevealRevision}
+        boundRevealRevision={drawerBoundRevealRevision}
         onSelectSession={(selection) => {
           chooseRootView('session');
           // Let the drawer paint the selected row once before its close transition starts.
@@ -3069,6 +3079,7 @@ export default function App() {
         open={bindOpen}
         bound={bound}
         onBound={bindSession}
+        onExistingBound={bindExistingSession}
         onClose={() => setBindOpen(false)}
         onAuthFail={onAuthFail}
         inset={inset}

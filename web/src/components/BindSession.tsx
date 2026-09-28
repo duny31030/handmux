@@ -20,7 +20,10 @@ interface HostSession {
 export interface BindSessionProps {
   open: boolean;
   onClose: () => void;
+  // Create flow callback (kept as the original public callback contract).
   onBound: (name: string) => void | Promise<void>;
+  // Selecting an existing host session only pins it in the drawer.
+  onExistingBound?: (name: string) => void | Promise<void>;
   bound: readonly string[];
   onAuthFail?: () => void;
   inset?: number;
@@ -50,7 +53,7 @@ const startupCommand = (): string => {
 
 // Bind a session by picking it. The bottom sheet lists host sessions that are not already bound on this
 // device; its separate new-session row enters the existing name/start-dir/startup-command form.
-export default function BindSession({ open, onClose, onBound, bound, onAuthFail, inset = 0 }: BindSessionProps) {
+export default function BindSession({ open, onClose, onBound, onExistingBound = onBound, bound, onAuthFail, inset = 0 }: BindSessionProps) {
   const [sessions, setSessions] = useState<HostSession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [view, setView] = useState<'pick' | 'new'>('pick');
@@ -98,7 +101,7 @@ export default function BindSession({ open, onClose, onBound, bound, onAuthFail,
     if (busy) return;
     setBusy(true); setError('');
     try {
-      await onBound(sessionName);
+      await onExistingBound(sessionName);
     } catch (caught) {
       if (caught instanceof UnauthorizedError) onAuthFail?.();
       else setError(caught instanceof Error ? caught.message : t('bind.checkFailed'));
@@ -118,7 +121,7 @@ export default function BindSession({ open, onClose, onBound, bound, onAuthFail,
     setLastStartupCmd(cmd); // remember the launcher for next time
     try {
       await createSession(n, cwd || undefined, cmd || undefined);
-      void onBound(n); // session is now live → bindSession/selectSession opens it
+      void onBound(n); // session is now live → the create flow opens it
     } catch (caught) {
       if (caught instanceof UnauthorizedError) onAuthFail?.();
       else setError(t('bind.createFailed'));
