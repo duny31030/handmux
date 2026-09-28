@@ -347,7 +347,13 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(() => { throw new Error('network access is forbidden in Task11 tests'); }));
 
   api.getSessions.mockResolvedValue([]);
-  api.getSessionTopology.mockResolvedValue([]);
+  api.getSessionTopology.mockImplementation(async () => {
+    const sessions = await api.getSessions();
+    return Promise.all(sessions.map(async (session: { id: string; name: string }) => ({
+      session,
+      windows: (await api.getWindows(session.id)).map((window: WorkspaceWindow) => ({ ...window, paneList: [] })),
+    })));
+  });
   api.getWindows.mockResolvedValue([]);
   api.getPanes.mockResolvedValue([]);
   api.getStates.mockResolvedValue({});

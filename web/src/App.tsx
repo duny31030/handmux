@@ -854,21 +854,10 @@ export default function App() {
   ): Promise<boolean> => {
     const switchEpoch = ++windowSwitchRef.current;
     if (isCancelled()) return false;
-    let windows: HostWindow[];
-    try {
-      const topology = await getSessionTopology();
-      const row = topology.find((candidate) => candidate.session.id === session.id
-        || candidate.session.name === session.name);
-      windows = row?.windows.map(hostWindow) || [];
-    } catch (error) {
-      // Only a missing route means an older server. Transport errors and server failures must stay
-      // visible to the caller; silently falling back there loses pane topology and creates the later
-      // two-step window switch that a reload appears to fix.
-      if (!(error instanceof ApiError) || error.status !== 404) throw error;
-      // Older servers do not expose topology yet; retain the previous opening path for compatibility.
-      windows = [];
-    }
-    if (!windows.length) windows = (await getWindows(session.id)).map(hostWindow);
+    const topology = await getSessionTopology();
+    const row = topology.find((candidate) => candidate.session.id === session.id
+      || candidate.session.name === session.name);
+    const windows = row?.windows.map(hostWindow) || [];
     if (isCancelled() || switchEpoch !== windowSwitchRef.current) return false;
     if (!windows.length) return false;
     const selectedWindow = (target?.window && windows.find((w) => w.id === target.window))
