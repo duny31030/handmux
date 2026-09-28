@@ -23,6 +23,7 @@ type MockTerminalProps = TerminalProps & {
 
 const api = vi.hoisted(() => ({
   getSessions: vi.fn(),
+  getSessionTopology: vi.fn(),
   getWindows: vi.fn(),
   getPanes: vi.fn(),
   getStates: vi.fn(),
@@ -346,6 +347,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(() => { throw new Error('network access is forbidden in Task11 tests'); }));
 
   api.getSessions.mockResolvedValue([]);
+  api.getSessionTopology.mockResolvedValue([]);
   api.getWindows.mockResolvedValue([]);
   api.getPanes.mockResolvedValue([]);
   api.getStates.mockResolvedValue({});
