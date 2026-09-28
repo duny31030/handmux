@@ -198,6 +198,7 @@ export default {
   'bind.creating': '作成中…',
   'bind.createHint': 'セッション「{name}」が存在しません。「作成して開く」をタップして作成してください',
   'bind.alreadyBound': 'このセッションはすでに紐付けられています',
+  'bind.bound': '「{name}」を紐付けました',
   'bind.createFailed': '作成に失敗しました。再試行してください',
   'bind.invalidName': '英数字とハイフンのみ（≤16文字）',
   'bind.desktopHint': 'ここのセッション(スマホで作成したものも)は、PC で 1 コマンドで引き継げます:handmux open <名前>',

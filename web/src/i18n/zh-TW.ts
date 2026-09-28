@@ -196,6 +196,7 @@ export default {
   'bind.creating': '建立中…',
   'bind.createHint': '工作階段「{name}」不存在，點「新增並開啟」建立',
   'bind.alreadyBound': '已綁定此工作階段',
+  'bind.bound': '已綁定工作階段「{name}」',
   'bind.createFailed': '建立失敗，請重試',
   'bind.invalidName': '只能使用字母、數字、連字號（≤16）',
   'bind.desktopHint': '這裡的工作階段(包括手機新建的),電腦上一條命令即可接管:handmux open <名稱>',

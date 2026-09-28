@@ -198,6 +198,7 @@ export default {
   'bind.creating': '생성 중…',
   'bind.createHint': '세션「{name}」이 존재하지 않습니다. 「생성 후 열기」를 탭하여 생성하세요',
   'bind.alreadyBound': '이미 연결된 세션입니다',
+  'bind.bound': '“{name}” 세션을 연결했습니다',
   'bind.createFailed': '생성에 실패했습니다. 다시 시도하세요',
   'bind.invalidName': '영문자, 숫자, 하이픈만 사용 가능（≤16자）',
   'bind.desktopHint': '여기의 세션(폰에서 만든 것 포함)은 컴퓨터에서 명령 하나로 이어받을 수 있습니다: handmux open <이름>',

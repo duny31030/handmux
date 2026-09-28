@@ -385,6 +385,7 @@ export default {
   'bind.creating': '新建中…',
   'bind.createHint': '会话「{name}」不存在,点「新建并打开」创建',
   'bind.alreadyBound': '已绑定该会话',
+  'bind.bound': '已绑定会话「{name}」',
   'bind.createFailed': '新建失败,请重试',
   'bind.invalidName': '只能用字母、数字、横线(≤16)',
   'bind.desktopHint': '这里的会话(包括手机新建的),电脑上一条命令即可接管:handmux open <会话名>',

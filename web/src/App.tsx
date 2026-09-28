@@ -353,6 +353,7 @@ export default function App() {
   const completedChatEntrySeqRef = useRef(0);
   const conversationIdentityByPaneRef = useRef(new Map<string, AgentConversationIdentity>());
   const [docToast, setDocToast] = useState<string | null>(null); // transient error toast for absolute-path doc failures
+  const [bindToast, setBindToast] = useState<string | null>(null); // transient confirmation after binding an existing session
   const [exitHint, setExitHint] = useState(false); // "press Back again to exit" hint (double-back guard)
   const [docLinkPrompt, setDocLinkPrompt] = useState<DocLinkPrompt | null>(null); // { path, x, y } confirm popover for a tapped terminal path
   const [docLinkOpening, setDocLinkOpening] = useState(false);
@@ -1501,6 +1502,7 @@ export default function App() {
     reportBound();
     setDrawerBoundRevealRevision((revision) => revision + 1);
     setBindOpen(false);
+    setBindToast(t('bind.bound', { name }));
   }, [reportBound]);
 
   // A newly created session is live and opens immediately.
@@ -2698,6 +2700,12 @@ export default function App() {
     return () => clearTimeout(id);
   }, [docToast]);
 
+  useEffect(() => {
+    if (!bindToast) return;
+    const id = setTimeout(() => setBindToast(null), 2600);
+    return () => clearTimeout(id);
+  }, [bindToast]);
+
   // Workspace recovery is a light authenticated poll: the server owns expiry/eligibility, while this
   // browser owns only per-checkpoint autoShown/ignored state. allSettled keeps the protection warning
   // fresh even when there is no checkpoint (restore-plan may legitimately be unavailable).
@@ -3254,6 +3262,9 @@ export default function App() {
       <BrowserSheet browser={browser} staticPreview={staticPreview} />
       {docToast && (
         <div className="doc-toast" role="alert" onClick={() => setDocToast(null)}>{docToast}</div>
+      )}
+      {bindToast && (
+        <div className="exit-toast bind-toast" role="status" aria-live="polite">{bindToast}</div>
       )}
       {exitHint && (
         <div className="exit-toast" role="status">{t('app.backToExit')}</div>

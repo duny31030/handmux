@@ -388,6 +388,7 @@ export default {
   'bind.creating': 'Creating…',
   'bind.createHint': 'Session "{name}" doesn\'t exist — tap "Create & open" to create it',
   'bind.alreadyBound': 'Session already bound',
+  'bind.bound': 'Bound “{name}”',
   'bind.createFailed': 'Create failed, please retry',
   'bind.invalidName': 'Only letters, digits, hyphens (≤16)',
   'bind.desktopHint': 'On the computer, one command takes any session here back over: handmux open <name>',
