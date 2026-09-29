@@ -158,6 +158,7 @@ export default {
   'access.noState': '  (no state)',
   'access.error': '  ✗ {msg}',
   'access.tunnel': '  tunnel   {tunnel}   ·   pid {pid}',
+  'access.version': '  version  {version}',
   'access.open': '  🌐 open   {url}',
   'access.pending': '(pending…)',
   'access.lan': '  📶 lan    {url}',

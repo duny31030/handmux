@@ -51,6 +51,7 @@ import { claudeUsagePath } from '../src/usagePaths.js';
 import { probe } from '../src/cli/probe.js';
 import { notifyUpdate, runUpdateCheck, isBrewInstall, PKG_NAME } from '../src/cli/updateCheck.js';
 import { t, initLocale, setLocale } from '../src/cli/i18n/index.js';
+import { SERVER_VERSION } from '../src/version.js';
 import { runPush } from '../src/cli/pushCmd.js';
 import { runAuthCommand } from '../src/cli/authCmd.js';
 import { runWorkspaceCommand } from '../src/cli/workspaceCmd.js';
@@ -860,6 +861,7 @@ async function printAccess(st: StoredState | null): Promise<void> {
   const scan = bareUrl(publicUrl);
   console.log('');
   console.log(t('access.tunnel', { tunnel: st.tunnel, pid: st.supervisorPid }));
+  console.log(t('access.version', { version: SERVER_VERSION ?? currentVersion() }));
   console.log(t('access.open', { url: scan || t('access.pending') }));
   if (st.tunnel === 'none' && st.lanUrl) console.log(t('access.lan', { url: bareUrl(st.lanUrl) }));
   console.log(t('access.local', { url: bareUrl(localUrl) }));

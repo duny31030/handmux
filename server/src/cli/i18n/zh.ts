@@ -157,6 +157,7 @@ export default {
   'access.noState': '  (无状态)',
   'access.error': '  ✗ {msg}',
   'access.tunnel': '  隧道   {tunnel}   ·   pid {pid}',
+  'access.version': '  版本   {version}',
   'access.open': '  🌐 打开   {url}',
   'access.pending': '(等待中…)',
   'access.lan': '  📶 局域网 {url}',
