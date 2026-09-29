@@ -8,6 +8,7 @@ import { idleDelay } from '../cadence.js';
 import { initialConnection, nextConnection } from '../connection.js';
 import type { TerminalConnectionState } from '../connection.js';
 import { scanDocLinks } from '../docDecorations.js';
+import type { TerminalDecorationSegment } from '../docDecorations.js';
 import {
   fitRows, bottomPadRows, scrollDecision, cursorBufferLine, followTarget, viewportAtTop,
 } from '../terminalViewport.js';
@@ -40,6 +41,7 @@ import { copyText } from '../clipboard.js';
 type TerminalTransportFallback = 'network' | 'unavailable';
 type TerminalInputFailure = 'pane-missing' | 'disconnected';
 type TerminalDecoration = { deco: IDecoration; marker: IMarker };
+type DocDecoration = TerminalDecoration & Pick<TerminalDecorationSegment, 'x' | 'width' | 'kind' | 'path'>;
 type TerminalVerticalScrollbar = { top: number; height: number };
 
 interface TerminalSeedState {
@@ -144,7 +146,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Terminal({
   // handler is held in a ref so the poll loop's stable closure always calls the latest prop (mirrors
   // how the loop reaches outside state via fitRef/wakeRef). Tapping a path does NOT open it directly
   // — it hands the path + tap coords to App, which shows a confirm popover (anti-误触).
-  const decosRef = useRef<TerminalDecoration[]>([]);
+  const decosRef = useRef<DocDecoration[]>([]);
   const cursorDecoRef = useRef<TerminalDecoration | null>(null); // decoration-drawn cursor for a full-screen app whose cursor is in scrollback (CUP can't reach it)
   const locateDecoRef = useRef<TerminalDecoration | null>(null); // full-row background highlight on the cursor's line (the 定位 toggle)
   const locateOnRef = useRef(false);  // is the 定位 line-highlight toggle on? (read inside effect scope)
@@ -920,25 +922,56 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Terminal({
     freezeTouchForHistoryPull = touch.freezeHistoryGesture;
     settleHistoryAnchor = touch.settleHistoryAnchor;
 
-    // Rebuild the persistent doc-path UNDERLINE after each full repaint (the visual cue; the actual
-    // tap is handled by the link provider above). Underline-only (no bg) so it can't trigger the
-    // scroll/BCE shading trap. Markers/decorations are disposed and recreated every repaint to match
-    // the poll-and-repaint model. decoration.dispose() does NOT dispose its marker in @xterm/xterm
-    // 5.5, so we track and dispose both each refresh (markers near baseY aren't trimmed, so they'd
-    // otherwise accumulate over a long session).
-    const refreshDocDecorations = (t: XTerm): void => {
+    // Keep the persistent doc-path wash across ordinary repaints (the visual cue; the actual tap is
+    // handled by the link provider above). Rebuilding every frame creates a decoration-free render
+    // window: xterm removes old decoration DOM synchronously, then materializes new decorations on a
+    // later render frame. Only replace the set when the scanned path segments actually changed.
+    // decoration.dispose() does NOT dispose its marker in @xterm/xterm 5.5, so we track and dispose both
+    // when a replacement is genuinely needed (markers near baseY aren't trimmed, so they'd otherwise
+    // accumulate over a long session).
+    const disposeDocDecorations = (): void => {
       for (const { deco, marker } of decosRef.current) { deco.dispose(); marker.dispose(); }
       decosRef.current = [];
-      if (!onDocLinkTapRef.current || !docHighlightRef.current) return; // off → clear + draw nothing
+    };
+    const refreshDocDecorations = (t: XTerm): void => {
+      if (!onDocLinkTapRef.current || !docHighlightRef.current) {
+        if (decosRef.current.length) disposeDocDecorations();
+        return;
+      }
+      const segments = scanDocLinks(t);
+      // Markers follow their logical buffer lines through normal output and scrollback trimming. Match
+      // against their CURRENT line instead of a prior array index, so a stable path survives scrolling
+      // and the full-frame visible replay without a dispose/register cycle. Matching is one-to-one to
+      // handle repeated identical paths on different rows.
+      const matched = new Set<number>();
+      const unchanged = decosRef.current.length === segments.length
+        && decosRef.current.every((entry) => {
+          if (entry.deco.isDisposed || entry.marker.isDisposed) return false;
+          const index = segments.findIndex((segment, i) => (
+            !matched.has(i)
+            && segment.y === entry.marker.line
+            && segment.x === entry.x
+            && segment.width === entry.width
+            && segment.kind === entry.kind
+            && segment.path === entry.path
+          ));
+          if (index < 0) return false;
+          matched.add(index);
+          return true;
+        });
+      if (unchanged) return;
+
+      disposeDocDecorations();
       const b = t.buffer.active;
       const cursorAbsY = b.baseY + b.cursorY;
-      for (const { y, x, width } of scanDocLinks(t)) {
+      for (const segment of segments) {
+        const { y, x, width, kind, path } = segment;
         const marker = t.registerMarker(y - cursorAbsY);
         if (!marker) continue;
         const deco = t.registerDecoration({ marker, x, width });
         if (!deco) { marker.dispose(); continue; }
         deco.onRender((el) => { el.classList.add('doc-deco'); });
-        decosRef.current.push({ deco, marker });
+        decosRef.current.push({ deco, marker, x, width, kind, path });
       }
     };
     refreshDecosRef.current = () => { if (!disposed && seeded) refreshDocDecorations(term); };
@@ -1607,8 +1640,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Terminal({
       if (streamPaintRaf != null) cancelAnimationFrame(streamPaintRaf);
       if (streamPaintTimer != null) clearTimeout(streamPaintTimer);
       telemetry.destroy();
-      for (const { deco, marker } of decosRef.current) { deco.dispose(); marker.dispose(); }
-      decosRef.current = [];
+      disposeDocDecorations();
       disposeCursorDeco();
       disposeLocate();
       disposeHistoryBoundary();
