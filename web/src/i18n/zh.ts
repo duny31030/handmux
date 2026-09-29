@@ -1117,7 +1117,7 @@ export default {
   'settings.whats_new': '新功能',
   'settings.view_changelog': '查看更新日志',
   'settings.reload_app': '重新加载应用',
-  'app.serverUpdatedTitle': '后端已更新',
+  'app.serverUpdatedTitle': 'handmux服务已更新',
   'app.serverUpdatedHint': '为避免数据丢失，请立即刷新页面。关闭后可从左侧抽屉顶部的刷新按钮重新加载。',
   'app.serverUpdatedReload': '立即刷新',
   'app.serverUpdatedLater': '稍后',

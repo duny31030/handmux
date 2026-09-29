@@ -36,6 +36,7 @@ try {
     'bin/handmux.js',
     'dist/bin/handmux.js',
     'dist/src/server.js',
+    'dist/build-meta.json',
     'dist/public/index.html',
     'dist/hooks/handmux-write.cjs',
   ]) {

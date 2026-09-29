@@ -1120,7 +1120,7 @@ export default {
   'settings.whats_new': "What's new",
   'settings.view_changelog': 'View changelog',
   'settings.reload_app': 'Reload app',
-  'app.serverUpdatedTitle': 'Backend updated',
+  'app.serverUpdatedTitle': 'handmux service updated',
   'app.serverUpdatedHint': 'Refresh now to avoid losing data. If you close this, use the refresh button beside Settings.',
   'app.serverUpdatedReload': 'Refresh now',
   'app.serverUpdatedLater': 'Later',

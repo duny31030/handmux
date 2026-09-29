@@ -738,11 +738,11 @@ export default function Drawer({
         <div className="drawer-brand">
           <img src="/icons/logo.svg" alt="" aria-hidden="true" />
             <strong className="drawer-brand-wordmark">hand<span>mux</span></strong>
-            <button type="button" className="drawer-reload" onClick={onReloadApp}
+            {reloadRequired && <button type="button" className="drawer-reload" onClick={onReloadApp}
               aria-label={t('app.serverUpdatedReload')} title={t('app.serverUpdatedReload')}>
               <RefreshIcon />
-              {reloadRequired && <span className="drawer-reload-dot" aria-hidden="true" />}
-            </button>
+              <span className="drawer-reload-dot" aria-hidden="true" />
+            </button>}
             <button type="button" className="drawer-settings" onClick={onOpenSettings} aria-label={t('app.settings')} title={t('app.settings')}><GearIcon /></button>
           </div>
           {projectTaskBeta && (

@@ -447,7 +447,7 @@ app.get('*', (req, res, next) => {
 app.use(apiErrorBoundary());
 
 const server = app.listen(cfg.port, cfg.host, () => {
-  console.log(`[handmux] listening on http://${cfg.host}:${cfg.port} (serving ${staticDir})`);
+  console.log(`[handmux] listening on http://${cfg.host}:${cfg.port} (serving ${staticDir}) · version ${SERVER_VERSION ?? 'unknown'}`);
 });
 const terminalStream = createTerminalStream({ token, commands,
   deviceAuth: { service: auth, resolveOrigin: resolveAuthOrigin },

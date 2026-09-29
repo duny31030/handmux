@@ -29,6 +29,7 @@ server/data/
 
 # generated at pack time by scripts/bundle-web.mjs (shipped via package.json "files", not committed)
 server/public/
+server/build-meta.json
 server/README.md
 server/README.zh-CN.md
 server/LICENSE

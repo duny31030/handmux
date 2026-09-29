@@ -17,6 +17,10 @@ const server = path.resolve(here, '..');
 const root = path.resolve(server, '..');
 const out = path.join(server, 'dist');
 
+execFileSync(process.execPath, [path.join(server, 'scripts', 'write-build-meta.mjs')], {
+  cwd: root,
+  stdio: 'inherit',
+});
 rmSync(out, { recursive: true, force: true });
 execFileSync(
   process.execPath,
@@ -40,3 +44,5 @@ if (publicSource) cpSync(publicSource, path.join(out, 'public'), { recursive: tr
 const packageJson = JSON.parse(readFileSync(path.join(server, 'package.json'), 'utf8'));
 mkdirSync(out, { recursive: true });
 writeFileSync(path.join(out, 'package.json'), `${JSON.stringify(packageJson, null, 2)}\n`);
+const buildMeta = path.join(server, 'build-meta.json');
+if (existsSync(buildMeta)) cpSync(buildMeta, path.join(out, 'build-meta.json'));

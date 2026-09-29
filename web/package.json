@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node ../server/scripts/write-build-meta.mjs",
     "dev": "vite",
+    "prebuild": "node ../server/scripts/write-build-meta.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --project tsconfig.json",

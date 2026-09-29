@@ -6,7 +6,7 @@
 // Outputs (all gitignored, regenerated each pack):
 //   server/public/            ← built web/dist
 //   server/README*.md, LICENSE ← copied from the repo root so the npm page has them
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { rmSync, cpSync, existsSync, copyFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,6 +20,10 @@ if (!existsSync(path.join(web, 'node_modules'))) {
   console.log('[bundle] installing web deps…');
   execSync('npm install', { cwd: web, stdio: 'inherit' });
 }
+execFileSync(process.execPath, [path.join(server, 'scripts', 'write-build-meta.mjs'), '--new'], {
+  cwd: root,
+  stdio: 'inherit',
+});
 console.log('[bundle] building web client…');
 execSync('npm run build', { cwd: web, stdio: 'inherit' });
 

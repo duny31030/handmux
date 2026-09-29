@@ -6,7 +6,20 @@ import path from 'node:path';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const serverPackage = JSON.parse(readFileSync(path.resolve(here, '../server/package.json'), 'utf8'));
+const buildMetaPath = path.resolve(here, '../server/build-meta.json');
+let buildMeta = null;
+try {
+  const value = JSON.parse(readFileSync(buildMetaPath, 'utf8'));
+  if (value && typeof value === 'object' && typeof value.buildId === 'string') buildMeta = value;
+} catch { /* direct Vite dev/build before metadata generation keeps the plain version */ }
 const clientVersion = typeof serverPackage.version === 'string' ? serverPackage.version : '0.0.0';
+const rawBuildId = typeof buildMeta?.buildId === 'string' ? buildMeta.buildId : null;
+const clientBuildId = rawBuildId && /^[0-9a-f]{12}$/.test(rawBuildId)
+  ? rawBuildId : rawBuildId && /^sha256:[0-9a-f]{64}$/.test(rawBuildId)
+    ? rawBuildId.slice('sha256:'.length, 'sha256:'.length + 12) : null;
+const clientServerVersion = clientBuildId
+  ? `${clientVersion}+${clientBuildId}`
+  : clientVersion;
 
 function resolveMigratedTypeScript() {
   return {
@@ -51,7 +64,7 @@ function asyncAppCss() {
 
 export default defineConfig({
   define: {
-    __HANDMUX_CLIENT_VERSION__: JSON.stringify(clientVersion),
+    __HANDMUX_CLIENT_VERSION__: JSON.stringify(clientServerVersion),
   },
   plugins: [resolveMigratedTypeScript(), react(), asyncAppCss()],
   server: {

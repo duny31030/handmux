@@ -1005,7 +1005,8 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .drawer-brand-wordmark { font-family: ui-rounded, -apple-system, system-ui, sans-serif; font-size: 19px; line-height: 1; font-weight: 650; letter-spacing: -.45px; color: #f1f4ee; white-space: nowrap; }
 .drawer-brand-wordmark span { background: linear-gradient(95deg, #7cf0d6, #33d69a); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .drawer-reload, .drawer-settings { flex: none; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: 11px; background: transparent; color: rgba(235,235,245,.62); touch-action: manipulation; position: relative; }
-.drawer-reload { margin-left: auto; }
+.drawer-reload, .drawer-settings { margin-left: auto; }
+.drawer-reload + .drawer-settings { margin-left: 0; }
 .drawer-reload svg, .drawer-settings svg { width: 19px; height: 19px; }
 .drawer-reload-dot { position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 2px rgba(34,35,42,.99); }
 .drawer-reload:active, .drawer-settings:active { background: rgba(118,118,128,.2); color: #fff; }

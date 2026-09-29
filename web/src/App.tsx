@@ -3062,8 +3062,7 @@ export default function App() {
       />
       {showServerReloadDialog && (
         <OverlayPortal>
-          <div className="settings-confirm-backdrop server-reload-dialog-backdrop"
-            onClick={() => setServerReloadDialogDismissed(true)}>
+          <div className="settings-confirm-backdrop server-reload-dialog-backdrop">
             <div className="settings-confirm server-reload-dialog" role="alertdialog" aria-modal="true"
               aria-labelledby="server-reload-title" aria-describedby="server-reload-hint"
               onClick={(event) => event.stopPropagation()}>
