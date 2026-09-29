@@ -128,6 +128,9 @@ export default function AgentInteractionLayer({
     && !interaction.fields[0].allowOther
     ? interaction.fields[0]
     : null;
+  const autoSubmitSelection = interaction.type === 'select'
+    || interaction.type === 'approval'
+    || standaloneSelectField !== null;
   const controllerError = controller.error === 'response_failed'
     ? t('agentConversation.interactionResponseFailed')
     : controller.error ? t('agentConversation.interactionUnavailable') : '';
@@ -147,10 +150,12 @@ export default function AgentInteractionLayer({
         : [...selected, optionId]
       : [optionId];
     setSelected(nextSelected);
-    // A standalone select is one question: choosing its radio option is the complete answer.
-    // Multi-select, approval, and form interactions keep an explicit submit step.
+    // A single-choice interaction is complete when its radio option is chosen. Multi-select keeps an
+    // explicit submit step because the user can select several options.
     if (interaction.type === 'select') {
       respond({ type: 'selection', optionIds: nextSelected });
+    } else if (interaction.type === 'approval') {
+      respond({ type: 'approval', optionId });
     }
   };
   const chooseFormOption = (fieldId: string, optionId: string): void => {
@@ -243,7 +248,7 @@ export default function AgentInteractionLayer({
           <button type="button" className="chat-gate-btn primary" onClick={onOpenTerminal}>
             {t('agentConversation.openTerminal')}
           </button>
-        ) : (
+        ) : autoSubmitSelection ? null : (
           <button type="button" className="chat-gate-btn primary" disabled={!value || busy}
             onClick={submit}>{busy ? t('common.loading') : t('common.confirm')}</button>
         )}
