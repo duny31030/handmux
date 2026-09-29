@@ -19,6 +19,34 @@ export interface ChangelogEntry {
 // `entryId`/`LATEST_RELEASE` use `version` when present, else `date`, as the stable unread-dot id.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.33.0',
+    date: '2026-09-30',
+    highlight: {
+      zh: '终端路径高亮不再闪烁 · 服务更新提示更可靠',
+      en: 'Steady terminal paths · reliable service update prompts',
+    },
+    items: {
+      zh: [
+        '修复终端更新时文件路径高亮反复消失又出现的问题，持续输出时画面更稳定。',
+        '单选授权和问题卡片选中后立即提交；多选卡片仍保留确认步骤。',
+        'handmux 服务更新时，对话页会提示立即刷新并说明数据保护；关闭提示后，左侧抽屉顶部的刷新按钮会一直保留红点。',
+        '版本号现在带有简短的部署构建 ID；启动时会和访问地址、二维码信息一起显示，同一份安装包在重启后保持相同 ID。',
+        '修复 Session、Window 和 pane 切换期间临时显示错误 pane、输入框状态被重置或其他窗口列表短暂消失的问题。',
+        '绑定已有 Session 后会明确显示结果，抽屉和当前工作区保持在正确位置。',
+        '修复 Claude 后台 Shell 回合结束后普通消息仍然排队的问题。',
+      ],
+      en: [
+        'Fixed file path highlights disappearing and returning during terminal updates, so sustained output stays steady.',
+        'Single-choice approval and question cards now submit as soon as an option is selected; multi-select cards keep their confirmation step.',
+        'When the handmux service is updated, the conversation page explains why to refresh immediately; after dismissal, the refresh button beside the drawer Settings keeps its red dot.',
+        'Versions now include a short deployment build ID, shown with the startup address and QR information; the same installed package keeps its ID across restarts.',
+        'Fixed temporary panes, reset composer state, and briefly missing window lists while switching Sessions, Windows, and panes.',
+        'Binding an existing Session now shows a clear result and keeps the drawer and current workspace in the right place.',
+        'Fixed ordinary messages staying queued after a Claude background Shell turn ended.',
+      ],
+    },
+  },
+  {
     version: '0.32.1',
     date: '2026-09-28',
     highlight: {
