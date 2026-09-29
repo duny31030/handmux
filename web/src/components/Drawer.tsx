@@ -16,7 +16,7 @@ import type { MouseEvent } from 'react';
 import type { WorkspaceRecoveryPlan, WorkspaceRestoreOperation } from '../workspaceRecovery.js';
 import ActionSheet from './ActionSheet.jsx';
 import { OverlayPortal } from '../overlays/OverlayHost.js';
-import { AgentMark, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon, CommandIcon, GearIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, XIcon } from './icons.jsx';
+import { AgentMark, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon, CommandIcon, GearIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, RefreshIcon, XIcon } from './icons.jsx';
 
 const EXPANDED_SESSIONS_KEY = 'handmux.drawer.expanded-sessions';
 const EMPTY_WINDOW_AGENTS: Readonly<Record<string, string | null | undefined>> = {};
@@ -133,6 +133,8 @@ interface DrawerProps {
   onSwitchProject?: () => void;
   onSwitchSession?: () => void;
   onOpenSettings?: () => void;
+  reloadRequired?: boolean;
+  onReloadApp?: () => void;
   onNewWindow?: (sessionName: string) => void;
   onManageWindow?: (sessionName: string, window: TmuxWindow) => void;
   onRenameSession?: (sessionName: string) => void;
@@ -168,7 +170,7 @@ export default function Drawer({
   open, onOpen = () => {}, currentSessionName, currentWindowId = null, currentPaneId = null, currentPanes = EMPTY_PANES, bound, onSelectSession, onUnbind, onBind, onClose,
   orphans = [], onTakeoverRequest,
   recoveryPlan = null, recoveryOperation = null, onOpenRecovery = () => {},
-  projectTaskBeta = false, onSwitchProject = () => {}, onSwitchSession = () => {}, onOpenSettings = () => {}, onNewWindow = () => {}, onManageWindow = () => {}, onRenameSession = () => {}, onDeleteSession = () => {}, onMoveSession = () => {}, windowOrderVersion = 0, rootView = 'session',
+  projectTaskBeta = false, onSwitchProject = () => {}, onSwitchSession = () => {}, onOpenSettings = () => {}, reloadRequired = false, onReloadApp = () => window.location.reload(), onNewWindow = () => {}, onManageWindow = () => {}, onRenameSession = () => {}, onDeleteSession = () => {}, onMoveSession = () => {}, windowOrderVersion = 0, rootView = 'session',
   revealRevision = 0, boundRevealRevision = 0, sessionInboxViews = EMPTY_SESSION_INBOX,
   windowAgents = EMPTY_WINDOW_AGENTS, paneInboxViews = EMPTY_SESSION_INBOX,
 }: DrawerProps) {
@@ -736,6 +738,11 @@ export default function Drawer({
         <div className="drawer-brand">
           <img src="/icons/logo.svg" alt="" aria-hidden="true" />
             <strong className="drawer-brand-wordmark">hand<span>mux</span></strong>
+            <button type="button" className="drawer-reload" onClick={onReloadApp}
+              aria-label={t('app.serverUpdatedReload')} title={t('app.serverUpdatedReload')}>
+              <RefreshIcon />
+              {reloadRequired && <span className="drawer-reload-dot" aria-hidden="true" />}
+            </button>
             <button type="button" className="drawer-settings" onClick={onOpenSettings} aria-label={t('app.settings')} title={t('app.settings')}><GearIcon /></button>
           </div>
           {projectTaskBeta && (

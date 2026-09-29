@@ -51,7 +51,7 @@ import {
   mergePaneAgents,
   navigationAgentMaps,
 } from './paneAgents.js';
-import { OverlayProvider } from './overlays/OverlayHost.js';
+import { OverlayPortal, OverlayProvider } from './overlays/OverlayHost.js';
 import { useOverlayActivity } from './hooks/useOverlayActivity.js';
 
 import Drawer from './components/Drawer.jsx';
@@ -449,6 +449,7 @@ export default function App() {
   const [clSeen, setClSeen] = useState(getChangelogSeen); // latest changelog id the user has opened
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null); // { current, latest, updateAvailable } — npm update hint (checked once per launch)
   const [serverReloadRequired, setServerReloadRequired] = useState(isServerReloadRequired);
+  const [serverReloadDialogDismissed, setServerReloadDialogDismissed] = useState(false);
   const [verSeen, setVerSeen] = useState(getVersionSeen); // npm "latest" already acknowledged by opening Settings
   const [seen, setSeen] = useState(getInboxSeen); // pane → last-viewed ts (inbox read state)
   const [readTs, setReadTs] = useState(getInboxReadTs); // server-ts high-water mark for done history (null=unset)
@@ -776,6 +777,8 @@ export default function App() {
     if (localUrlPrompt) closeLocalUrl(); else setDocLinkPrompt(null);
   });
   useBackButton(settingsOpen, () => setSettingsOpen(false));
+  useBackButton(serverReloadRequired && !serverReloadDialogDismissed,
+    () => setServerReloadDialogDismissed(true));
   useBackButton(changelogOpen, () => setChangelogOpen(false));
   // Same for 长按窗口管理 → 重命名 (and the topbar long-press rename, which opens the modal alone).
   useBackButton(!!manageWindow || !!renameTarget, () => {
@@ -3053,16 +3056,26 @@ export default function App() {
         voiceMode={serverConfig?.asrMode ?? null}
         voiceFillerFilterSupported={serverConfig?.asrFillerFilter ?? false}
       />
-      {serverReloadRequired && (
-        <div className="server-reload-banner" role="alert">
-          <div className="server-reload-banner-copy">
-            <strong>{t('app.serverUpdatedTitle')}</strong>
-            <span>{t('app.serverUpdatedHint')}</span>
+      {serverReloadRequired && !serverReloadDialogDismissed && (
+        <OverlayPortal>
+          <div className="settings-confirm-backdrop server-reload-dialog-backdrop"
+            onClick={() => setServerReloadDialogDismissed(true)}>
+            <div className="settings-confirm server-reload-dialog" role="alertdialog" aria-modal="true"
+              aria-labelledby="server-reload-title" aria-describedby="server-reload-hint"
+              onClick={(event) => event.stopPropagation()}>
+              <h2 id="server-reload-title">{t('app.serverUpdatedTitle')}</h2>
+              <p id="server-reload-hint">{t('app.serverUpdatedHint')}</p>
+              <div className="settings-confirm-actions">
+                <button type="button" autoFocus onClick={() => setServerReloadDialogDismissed(true)}>
+                  {t('app.serverUpdatedLater')}
+                </button>
+                <button type="button" className="reload-action" onClick={() => window.location.reload()}>
+                  {t('app.serverUpdatedReload')}
+                </button>
+              </div>
+            </div>
           </div>
-          <button type="button" onClick={() => window.location.reload()}>
-            {t('app.serverUpdatedReload')}
-          </button>
-        </div>
+        </OverlayPortal>
       )}
       <Changelog open={changelogOpen} onClose={() => setChangelogOpen(false)} />
       <InboxPage
@@ -3088,6 +3101,7 @@ export default function App() {
         currentPaneId={current?.paneId ?? null}
         {...(current ? { currentPanes: current.panes } : {})}
         bound={bound}
+        reloadRequired={serverReloadRequired}
         revealRevision={drawerRevealRevision}
         boundRevealRevision={drawerBoundRevealRevision}
         onSelectSession={(selection) => {
@@ -3099,6 +3113,7 @@ export default function App() {
         onUnbind={unbindSession}
         onBind={() => setBindOpen(true)}
         onClose={() => setDrawerOpen(false)}
+        onReloadApp={() => window.location.reload()}
         orphans={orphans}
         onTakeoverRequest={(orphan) => {
           if (orphan.sessionId) setTakeoverTarget({ ...orphan, sessionId: orphan.sessionId });
