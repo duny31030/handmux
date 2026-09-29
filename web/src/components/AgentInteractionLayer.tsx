@@ -125,12 +125,27 @@ export default function AgentInteractionLayer({
   const controllerError = controller.error === 'response_failed'
     ? t('agentConversation.interactionResponseFailed')
     : controller.error ? t('agentConversation.interactionUnavailable') : '';
-  const submit = (): void => {
-    if (!value || busy) return;
+  const respond = (nextValue: AgentInteractionValue | null): void => {
+    if (!nextValue || busy) return;
     setError('');
-    void controller.respond(interaction, value).catch(() => {
+    void controller.respond(interaction, nextValue).catch(() => {
       setError(t('agentConversation.interactionResponseFailed'));
     });
+  };
+  const submit = (): void => { respond(value); };
+  const chooseOption = (optionId: string): void => {
+    if (busy) return;
+    const nextSelected = interaction.type === 'multi_select'
+      ? selected.includes(optionId)
+        ? selected.filter((id) => id !== optionId)
+        : [...selected, optionId]
+      : [optionId];
+    setSelected(nextSelected);
+    // A standalone select is one question: choosing its radio option is the complete answer.
+    // Multi-select, approval, and form interactions keep an explicit submit step.
+    if (interaction.type === 'select') {
+      respond({ type: 'selection', optionIds: nextSelected });
+    }
   };
   return (
     <div className="chat-gate agent-interaction-layer" role="dialog" aria-modal="true">
@@ -145,11 +160,7 @@ export default function AgentInteractionLayer({
               <button key={option.id} type="button"
                 role={interaction.type === 'multi_select' ? 'checkbox' : 'radio'}
                 aria-checked={active} className={`chat-gate-opt${active ? ' on' : ''}`}
-                disabled={busy} onClick={() => setSelected((current) => (
-                  interaction.type === 'multi_select'
-                    ? active ? current.filter((id) => id !== option.id) : [...current, option.id]
-                    : [option.id]
-                ))}>
+                disabled={busy} onClick={() => chooseOption(option.id)}>
                 <span className="chat-gate-opt-label">{option.label}</span>
                 {option.description
                   && <span className="chat-gate-opt-desc">{option.description}</span>}
