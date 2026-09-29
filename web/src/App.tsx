@@ -3350,10 +3350,11 @@ export default function App() {
             onLensChange={(v) => { setLens(v); localStorage.setItem('tw_lens_' + current.paneId, v); }}
           />
           {/* The host replaces the primary Surface and its matching controls as one keyed bundle. */}
-          <PaneSurfaceHost
-            ownerKey={paneSurfaceOwnerKey}
-            controlsKey={paneSurfaceControlsKey}
-            primary={current.paneId && (
+          <div className={`pane-surface-page ${chatLens ? 'conversation-page' : 'terminal-page'}`}>
+            <PaneSurfaceHost
+              ownerKey={paneSurfaceOwnerKey}
+              controlsKey={paneSurfaceControlsKey}
+              primary={current.paneId && (
             chatLens ? (
               durableConversationRecovery ? (
                 <CodexActivationRecoveryGuide controller={conversationRecovery}
@@ -3427,7 +3428,7 @@ export default function App() {
               />
             )
           )}
-            controls={chatLens ? (
+              controls={chatLens ? (
             composerIdentity ? (<>
               <AgentInteractionLayer controller={agentInteraction} waiting={currentKind === 'permission'}
                 onOpenTerminal={() => {
@@ -3506,7 +3507,8 @@ export default function App() {
               onLeaveTerminal={() => termRef.current?.blurInput?.()}
               onReturnToTerminal={() => { focusTerminal(); }}
             />
-          )} />
+            )} />
+          </div>
         </>
       ) : sessionLoading ? (
         <div className="workspace-switch-loading" role="status" aria-live="polite">

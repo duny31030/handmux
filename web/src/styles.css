@@ -78,6 +78,12 @@ html, body, #root {
 .overlay-layer { --overlay-keyboard-inset: 0px; }
 body { font-family: -apple-system, system-ui, sans-serif; background: #1a1b1e; color: #e6e6e6; }
 .app { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.pane-surface-page {
+  flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column;
+}
+.conversation-page {
+  position: relative; z-index: 0; overflow: hidden;
+}
 .topbar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; background: #2a2b2e; }
 .hamburger { flex: none; font-size: 20px; background: none; border: none; color: #e6e6e6;
   width: 44px; height: 34px; display: inline-flex; align-items: center; justify-content: center; padding: 0;
@@ -4148,12 +4154,10 @@ button.cmd-text { background: none; border: none; text-align: left; }
   font-size: 12.5px; font-style: italic; line-height: 1.45; white-space: pre-wrap; word-break: break-word;
 }
 
-/* Gate card — a bottom SHEET docked over the composer (fixed, FULL-width, flush to the screen's bottom
-   edge): while a menu owns the pane's input the composer behind is useless, so the sheet covers it edge
-   to edge and the question + its lead-in is always in view — no scrolling. Top corners rounded like an
-   iOS sheet; safe-area padding on the bottom. Buttons are ≥44pt. */
+/* Gate card — a conversation-scoped bottom sheet docked over the composer. The conversation page owns
+   the positioning context and stacking level, so this card cannot cover the Window settings or drawer. */
 .chat-gate {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--z-overlay-nested-content);
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 1;
   padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
   border-radius: 14px 14px 0 0;
   /* The card has to say where it starts on its own. --ct-bar sits within a step of --ct-body in every

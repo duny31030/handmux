@@ -122,6 +122,12 @@ export default function AgentInteractionLayer({
   }
   const value = responseValue(interaction, selected, text, answers);
   const busy = controller.respondingId === interaction.id;
+  const standaloneSelectField = interaction.type === 'form'
+    && interaction.fields?.length === 1
+    && interaction.fields[0]?.type === 'select'
+    && !interaction.fields[0].allowOther
+    ? interaction.fields[0]
+    : null;
   const controllerError = controller.error === 'response_failed'
     ? t('agentConversation.interactionResponseFailed')
     : controller.error ? t('agentConversation.interactionUnavailable') : '';
@@ -145,6 +151,14 @@ export default function AgentInteractionLayer({
     // Multi-select, approval, and form interactions keep an explicit submit step.
     if (interaction.type === 'select') {
       respond({ type: 'selection', optionIds: nextSelected });
+    }
+  };
+  const chooseFormOption = (fieldId: string, optionId: string): void => {
+    if (busy) return;
+    const nextAnswers = { ...answers, [fieldId]: optionId };
+    setAnswers(nextAnswers);
+    if (standaloneSelectField?.id === fieldId) {
+      respond({ type: 'form', answers: nextAnswers });
     }
   };
   return (
@@ -192,7 +206,7 @@ export default function AgentInteractionLayer({
                     <button key={option.id} type="button" role="radio"
                       aria-checked={answer === option.id}
                       className={`chat-gate-opt${answer === option.id ? ' on' : ''}`}
-                      disabled={busy} onClick={() => update(option.id)}>
+                      disabled={busy} onClick={() => chooseFormOption(field.id, option.id)}>
                       <span className="chat-gate-opt-label">{option.label}</span>
                       {option.description
                         && <span className="chat-gate-opt-desc">{option.description}</span>}
