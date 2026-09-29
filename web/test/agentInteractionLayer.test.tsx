@@ -93,8 +93,6 @@ describe('AgentInteractionLayer', () => {
     });
     const { container } = render(<AgentInteractionLayer controller={value} />);
     fireEvent.click(screen.getByRole('radio', { name: 'Allow' }));
-    fireEvent.click(screen.getByRole('button', { name: '确认' }));
-
     await waitFor(() => expect(screen.getByRole('status').textContent)
       .toBe('没有发送成功，请重试或在终端中继续。'));
     expect(container.textContent).not.toContain('/private/work');

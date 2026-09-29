@@ -1074,7 +1074,7 @@ describe('App window switching', () => {
     api.getSessions.mockResolvedValue([session]);
     api.getWindows.mockResolvedValue([first, second, third]);
     api.getPanes
-      .mockResolvedValueOnce([{ id: '%1', active: true, width: 80 }])
+      .mockResolvedValueOnce([{ id: '%1', active: true, width: 80, agent: null }])
       .mockReturnValueOnce(secondPanes.promise)
       .mockReturnValueOnce(thirdPanes.promise);
     await renderApp();

@@ -51,8 +51,8 @@ export function observeServerVersion(value: string | null | undefined): void {
   if (!wasRequired && typeof window !== 'undefined') window.dispatchEvent(new Event(SERVER_VERSION_EVENT));
 }
 
-export function observeServerResponse(response: { headers: { get(name: string): string | null } }): void {
-  observeServerVersion(response.headers.get(SERVER_VERSION_HEADER));
+export function observeServerResponse(response: { headers?: { get?: (name: string) => string | null } }): void {
+  observeServerVersion(response.headers?.get?.(SERVER_VERSION_HEADER));
 }
 
 export function serverReloadRequired(): boolean { return reloadRequired; }

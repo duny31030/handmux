@@ -1142,8 +1142,10 @@ export default function App() {
       // of issuing a second lookup between the switch commit and its first tick.
       const hydratedWindow = { ...window, panes: panes.length, paneList: panes.map((pane) => ({ ...pane })) };
       const latest = currentRef.current;
-      if (!latest || latest.session.id !== currentSession.session.id
-        || !latest.windows.some((item) => item.id === window.id)) return null;
+      // The WindowBar row can come from a topology snapshot that has not been published into `current`
+      // yet. The switch epoch and session identity already reject late work from another navigation; do
+      // not discard a valid explicit click merely because the local window list is one poll behind.
+      if (!latest || latest.session.id !== currentSession.session.id) return null;
       prefetchedPanesRef.current.set(window.id, panes);
       setControlsRevision((revision) => revision + 1);
       setCurrent((c) => {
