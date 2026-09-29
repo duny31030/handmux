@@ -17,6 +17,7 @@
   --scroll-thumb-active: rgba(80,145,230,.82);
   /* Global Overlay order. Component-internal stacking (sticky headers, terminal cursors, etc.) stays
      local; anything that can compete across app surfaces must use one of these semantic levels. */
+  --z-overlay-page-notice: 8;
   --z-overlay-drawer-backdrop: 9;
   --z-overlay-drawer: 10;
   --z-overlay-base-backdrop: 19;
@@ -590,7 +591,7 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .settings-update-how { font-size: 12px; color: #9aa0a8; line-height: 1.5; margin-top: 6px; }
 .settings-update-how code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
   color: #e6e8ec; background: rgba(120,120,128,.22); padding: 1px 5px; border-radius: 5px; }
-.server-reload-dialog-backdrop { z-index: var(--z-overlay-dialog-backdrop); }
+.server-reload-dialog-backdrop { z-index: var(--z-overlay-page-notice); }
 .server-reload-dialog .settings-confirm-actions .reload-action { color: var(--blue); font-weight: 600; }
 /* Small spinner shown while (un)subscribing, so the user waits instead of mis-tapping. */
 @keyframes tw-spin { to { transform: rotate(360deg); } }

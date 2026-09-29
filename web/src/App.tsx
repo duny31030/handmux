@@ -450,6 +450,10 @@ export default function App() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null); // { current, latest, updateAvailable } — npm update hint (checked once per launch)
   const [serverReloadRequired, setServerReloadRequired] = useState(isServerReloadRequired);
   const [serverReloadDialogDismissed, setServerReloadDialogDismissed] = useState(false);
+  const showServerReloadDialog = serverReloadRequired
+    && !serverReloadDialogDismissed
+    && rootView === 'session'
+    && lens === 'chat';
   const [verSeen, setVerSeen] = useState(getVersionSeen); // npm "latest" already acknowledged by opening Settings
   const [seen, setSeen] = useState(getInboxSeen); // pane → last-viewed ts (inbox read state)
   const [readTs, setReadTs] = useState(getInboxReadTs); // server-ts high-water mark for done history (null=unset)
@@ -777,7 +781,7 @@ export default function App() {
     if (localUrlPrompt) closeLocalUrl(); else setDocLinkPrompt(null);
   });
   useBackButton(settingsOpen, () => setSettingsOpen(false));
-  useBackButton(serverReloadRequired && !serverReloadDialogDismissed,
+  useBackButton(showServerReloadDialog,
     () => setServerReloadDialogDismissed(true));
   useBackButton(changelogOpen, () => setChangelogOpen(false));
   // Same for 长按窗口管理 → 重命名 (and the topbar long-press rename, which opens the modal alone).
@@ -3056,7 +3060,7 @@ export default function App() {
         voiceMode={serverConfig?.asrMode ?? null}
         voiceFillerFilterSupported={serverConfig?.asrFillerFilter ?? false}
       />
-      {serverReloadRequired && !serverReloadDialogDismissed && (
+      {showServerReloadDialog && (
         <OverlayPortal>
           <div className="settings-confirm-backdrop server-reload-dialog-backdrop"
             onClick={() => setServerReloadDialogDismissed(true)}>
