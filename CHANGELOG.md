@@ -8,6 +8,7 @@ All notable changes to handmux. Format follows [Keep a Changelog](https://keepac
 
 - 修复后端升级后已打开的前端页面没有提示刷新的问题。
 - 修复会话拓扑刷新后切换窗口先显示临时 pane、再补齐分屏的问题。
+- 修复 Claude 在后台 Shell 状态下完成信号丢失，导致排队消息无法自动发送的问题。
 
 ## [0.32.1] - 2026-09-28
 

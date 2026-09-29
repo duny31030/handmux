@@ -349,13 +349,25 @@ it('retains busy while native output advances beyond the activity transition tim
   expect(h.read()).toMatchObject({ status: 'busy', settled: null });
 });
 
-it('does not interpret native shell mode or a disappeared registry as another completion', () => {
+it.each(['stop', 'stopfail'])('treats a shell registry as the completed turn only for a terminal %s Hook', (src) => {
   const h = registryFixture();
   expect(h.read().settled).toBeTruthy();
-  h.writeStatus({ status: 'shell' });
-  expect(h.read()).toMatchObject({ status: 'unknown', settled: null });
+  h.writeStatus({ status: 'shell', statusUpdatedAt: 5000 });
+  expect(h.reader.read(h.payload, 4000, 10000, h.process, src)).toMatchObject({
+    status: 'idle', settled: expect.stringContaining('claude-native-idle:'),
+  });
+  expect(h.reader.read(h.payload, 4000, 10000, h.process, 'prompt')).toMatchObject({
+    status: 'unknown', settled: null,
+  });
+  const stateFile = path.join(h.directory, 'hook.json');
+  fs.writeFileSync(stateFile, JSON.stringify({ '%1': {
+    src, ts: 4000, sequence: 2, process: h.process, payload: h.payload,
+  } }));
+  const events = createClaudeEvents({ file: stateFile, now: () => 10000 });
+  expect(events.paneKind('%1', h.process)).toBe('idle');
+  expect(events.paneCompletionToken('%1', h.process)).toBe('claude-native-idle:4442e3d0-8d46-4cce-9822-b86558f69922:101:1000:5000');
   fs.unlinkSync(h.registry);
-  expect(h.read()).toMatchObject({ status: 'unknown', settled: null });
+  expect(h.reader.read(h.payload, 4000, 10000, h.process, src)).toMatchObject({ status: 'unknown', settled: null });
 });
 
 it('does not emit a legacy completion during the very first partially written registry read', () => {

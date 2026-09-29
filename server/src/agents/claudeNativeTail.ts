@@ -173,11 +173,16 @@ export class ClaudeNativeTailReader {
     // on Linux it is a raw tick. pid + session + start token already identify the row.
     const startedEpoch = typeof process.startedAt === 'number' && process.startedAt > 1e12
       ? process.startedAt : undefined;
+    const shellTerminalHook = (src === 'stop' || src === 'stopfail') && row.status === 'shell';
     if (typeof row.statusUpdatedAt !== 'number' || row.statusUpdatedAt > now
       || (startedEpoch !== undefined && row.statusUpdatedAt < startedEpoch)
       || (row.status === 'idle' && (!native.transcriptComplete || row.statusUpdatedAt <= after || row.statusUpdatedAt < (native.latestNativeAt ?? 0)))
-      || !['idle', 'busy', 'waiting'].includes(String(row.status))) return unknown();
-    const status = row.status as 'idle' | 'busy' | 'waiting';
+      || (!shellTerminalHook && !['idle', 'busy', 'waiting'].includes(String(row.status)))) return unknown();
+    // Claude can leave a background Bash process in `shell` after the model turn has ended. A terminal
+    // Hook is the authoritative completion edge for that turn, even when the native registry update
+    // lands just after the Hook. Keep other `shell` observations conservative so a live background
+    // task cannot make the queue dispatch early.
+    const status = shellTerminalHook ? 'idle' : row.status as 'idle' | 'busy' | 'waiting';
     const statusEventId = `claude-native:${payload.session_id}:${process.pid}:${process.startedAt}:${row.statusUpdatedAt}:${status}`;
     if (status !== 'idle') return { ...native, status, statusEventId, settled: null, localCommand: null };
     // statusUpdatedAt changes only on native activity transitions, unlike metadata updatedAt.
