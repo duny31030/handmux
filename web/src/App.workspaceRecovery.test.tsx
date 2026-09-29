@@ -1063,7 +1063,7 @@ describe('App management dimensions', () => {
 });
 
 describe('App window switching', () => {
-  it('opens the target terminal immediately and ignores a slower stale pane response', async () => {
+  it('publishes Window and panes together and ignores a slower stale pane response', async () => {
     const session = { id: '$7', name: 'current' };
     const first = { id: '@1', name: 'one', active: true, panes: 1, activePaneId: '%1' };
     const second = { id: '@2', name: 'two', active: false, panes: 1, activePaneId: '%2' };
@@ -1081,13 +1081,13 @@ describe('App window switching', () => {
 
     let secondSwitch: Promise<void> | undefined;
     act(() => { secondSwitch = windowBarProps().onSelectWindow(second); });
-    expect(windowBarProps().currentWindowId).toBe('@2');
-    expect(screen.getByTestId('terminal-pane').textContent).toBe('%2');
+    expect(windowBarProps().currentWindowId).toBe('@1');
+    expect(screen.getByTestId('terminal-pane').textContent).toBe('%1');
 
     let thirdSwitch: Promise<void> | undefined;
     act(() => { thirdSwitch = windowBarProps().onSelectWindow(third); });
-    expect(windowBarProps().currentWindowId).toBe('@3');
-    expect(screen.getByTestId('terminal-pane').textContent).toBe('%3');
+    expect(windowBarProps().currentWindowId).toBe('@1');
+    expect(screen.getByTestId('terminal-pane').textContent).toBe('%1');
 
     await act(async () => {
       thirdPanes.resolve([{ id: '%3', active: true, width: 120 }]);
@@ -1145,7 +1145,7 @@ describe('App window switching', () => {
 
     let switchPromise!: Promise<unknown>;
     act(() => { switchPromise = windowBarProps().onSelectWindow(second); });
-    expect(windowBarProps().currentWindowId).toBe(second.id);
+    expect(windowBarProps().currentWindowId).toBe(first.id);
     expect(view.container.querySelector('.cc-text')).toBe(composer);
     expect(document.activeElement).toBe(composer);
 

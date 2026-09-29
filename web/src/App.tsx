@@ -866,19 +866,23 @@ export default function App() {
       || windows[0];
     if (!selectedWindow) return false;
     const structuralPanes = selectedWindow.paneList?.map((pane) => ({ ...pane })) as HostPane[] | undefined;
-    let panes = structuralPanes || [];
+    const structuralComplete = !!structuralPanes?.length
+      && (!Number.isFinite(selectedWindow.panes) || structuralPanes.length >= selectedWindow.panes);
+    let panes = structuralComplete ? structuralPanes! : [];
     if (!panes.length) {
-      panes = await getPanes(selectedWindow.id);
+      panes = await getPanes(selectedWindow.id, { fresh: true });
       if (isCancelled() || switchEpoch !== windowSwitchRef.current) return false;
     }
     if (!panes.length) return false;
     const paneId = (target?.pane && panes.some((p) => p.id === target.pane))
       ? target.pane
       : pickId(panes, getLastPane(selectedWindow.id));
-    const hydratedWindow = { ...selectedWindow, paneList: panes.map((pane) => ({ ...pane })) };
+    const hydratedWindow = { ...selectedWindow, panes: panes.length, paneList: panes.map((pane) => ({ ...pane })) };
     const hydratedWindows = windows.map((window) => window.id === hydratedWindow.id ? hydratedWindow : window);
-    if (structuralPanes?.length && structuralPanes.every((pane) => Object.hasOwn(pane, 'agent'))) {
-      prefetchedPanesRef.current.set(selectedWindow.id, structuralPanes);
+    const enrichedPanes = panes.length && panes.every((pane) => Object.hasOwn(pane, 'agent'))
+      ? panes : null;
+    if (enrichedPanes) {
+      prefetchedPanesRef.current.set(selectedWindow.id, enrichedPanes);
     }
     setControlsRevision((revision) => revision + 1);
     setCurrent({ session, windows: hydratedWindows, window: hydratedWindow, panes, paneId });
@@ -1098,59 +1102,59 @@ export default function App() {
   }, [recoveryOperationId, needToken, applyRecoveryMapping, consumeRecoveryPlan, handledAuth]);
 
   // Switch to another window within the current session (its active pane). Session/hash unchanged.
+  // Keep the old workspace mounted until the fresh pane snapshot is ready, then publish Window + panes
+  // together. A topology gap must never expose a pane-less/one-pane intermediate state to WindowBar.
   const selectWindow = useCallback(async (sourceWindow: WorkspaceWindow): Promise<string | null | undefined> => {
     const window = hostWindow(sourceWindow);
+    const currentSession = currentRef.current;
+    if (!currentSession) return null;
     const switchEpoch = ++windowSwitchRef.current;
     const rememberedPaneId = getLastPane(window.id);
     const structuralPanes = window.paneList?.map((pane) => ({ ...pane })) as HostPane[] | undefined;
-    const rememberedExists = !!rememberedPaneId && !!structuralPanes?.some((pane) => pane.id === rememberedPaneId);
-    const immediatePaneId = (rememberedExists ? rememberedPaneId : null)
+    // The pane route is intentionally fresh on an explicit WindowBar click. The structural list is only
+    // a hint for choosing the remembered target while the request is in flight; it is never committed.
+    const initialPaneId = (structuralPanes?.find((pane) => pane.id === rememberedPaneId)?.id)
       || structuralPanes?.find((pane) => pane.active)?.id
       || window.activePaneId
       || structuralPanes?.[0]?.id
-      || null;
-    // Commit the user's choice before the pane request settles. With activePaneId supplied by the existing
-    // window listing, Terminal mounts now and shows its own loading surface while pane metadata catches up.
-    if (!immediatePaneId || !current) return null;
-    setControlsRevision((revision) => revision + 1);
-    const enrichedStructuralPanes = structuralPanes?.length && structuralPanes.every((pane) => Object.hasOwn(pane, 'agent'))
-      ? structuralPanes : null;
-    if (enrichedStructuralPanes) prefetchedPanesRef.current.set(window.id, enrichedStructuralPanes);
-    const paneRequest = enrichedStructuralPanes ? Promise.resolve(enrichedStructuralPanes) : getPanes(window.id);
+      || rememberedPaneId
+      || '';
+    const paneRequest = getPanes(window.id, { fresh: true });
     paneRequestsRef.current.set(window.id, paneRequest);
-    pendingWindowPaneRef.current = { windowId: window.id, initialPaneId: immediatePaneId, rememberedPaneId, request: paneRequest };
-    setCurrent((c) => (c ? { ...c, window, panes: structuralPanes || [], paneId: immediatePaneId } : c));
+    pendingWindowPaneRef.current = { windowId: window.id, initialPaneId, rememberedPaneId, request: paneRequest };
     try {
       const panes = await paneRequest;
       if (switchEpoch !== windowSwitchRef.current) return null;
-      if (!panes.length) {
-        if (pendingWindowPaneRef.current?.windowId === window.id
-          && pendingWindowPaneRef.current.request === paneRequest) pendingWindowPaneRef.current = null;
-        return;
-      }
+      // An empty response means the target no longer has a usable pane. Keep the previous complete
+      // workspace mounted; a non-empty /panes response is the authoritative snapshot for this window.
+      if (!panes.length) return null;
       const paneId = pickId(panes, rememberedPaneId);
       if (pendingWindowPaneRef.current?.windowId === window.id
         && pendingWindowPaneRef.current.request === paneRequest) pendingWindowPaneRef.current = null;
       // If the topology poll starts after this request settles, let it consume the same result instead
       // of issuing a second lookup between the switch commit and its first tick.
+      const hydratedWindow = { ...window, panes: panes.length, paneList: panes.map((pane) => ({ ...pane })) };
+      const latest = currentRef.current;
+      if (!latest || latest.session.id !== currentSession.session.id
+        || !latest.windows.some((item) => item.id === window.id)) return null;
       prefetchedPanesRef.current.set(window.id, panes);
-      const hydratedWindow = { ...window, paneList: panes.map((pane) => ({ ...pane })) };
+      setControlsRevision((revision) => revision + 1);
       setCurrent((c) => {
-        if (!c || c.window.id !== window.id) return c;
+        if (!c || c.session.id !== currentSession.session.id) return c;
         const windows = c.windows.map((item) => item.id === window.id ? hydratedWindow : item);
         return { ...c, windows, window: hydratedWindow, panes, paneId };
       });
-      remember({ sessionId: current.session.id, windowId: window.id, paneId });
+      remember({ sessionId: currentSession.session.id, windowId: window.id, paneId });
       return paneId; // callers (管理分屏) need the now-current pane to open its manage sheet
     } catch (e) {
       handledAuth(e);
-      if (pendingWindowPaneRef.current?.windowId === window.id
-        && pendingWindowPaneRef.current.request === paneRequest) pendingWindowPaneRef.current = null;
       return null;
     } finally {
+      if (pendingWindowPaneRef.current?.windowId === window.id
+        && pendingWindowPaneRef.current.request === paneRequest) pendingWindowPaneRef.current = null;
       if (paneRequestsRef.current.get(window.id) === paneRequest) paneRequestsRef.current.delete(window.id);
     }
-  }, [current, onAuthFail]);
+  }, [onAuthFail]);
 
   // Create a new window in the current session (in the current pane's dir, see POST /windows), with
   // an optional name, then switch to it. Mirrors selectWindow's post-switch bookkeeping. Lets
@@ -1286,75 +1290,97 @@ export default function App() {
     if (current?.session) setRenameTarget({ kind: 'session', id: current.session.id, name: current.session.name });
   });
 
-  // Drawer rows carry a complete session/window outline. Use that outline directly so a tap can
-  // move the visible session/window highlight immediately; only pane metadata needs a follow-up call.
-  const selectCachedSession = useCallback((selection: DrawerSelection): boolean => {
+  // Drawer rows carry a session/window outline, but their paneList can be a transient topology gap.
+  // Resolve the selected Window's fresh pane snapshot first, then publish Session + Window + panes in
+  // one state commit. Until that succeeds the previous complete workspace remains on screen.
+  const selectCachedSession = useCallback(async (selection: DrawerSelection): Promise<boolean> => {
     const session = selection.session;
     const windows = selection.windows.map(hostWindow);
     const selectedWindow = windows.find((candidate) => candidate.id === selection.window.id);
     if (!selectedWindow || !windows.length) return false;
     // Invalidate a slower name-only selection that may still be resolving getSessions. Its
     // openSession call observes this epoch and must not overwrite the row the user just chose.
-    ++sessionSelectionRef.current;
+    const selectionEpoch = ++sessionSelectionRef.current;
+    // A cached same-window tap is still a user navigation decision. Invalidate any older WindowBar
+    // request before taking the fast path, so a late response cannot jump back to the previous target.
+    ++windowSwitchRef.current;
+    pendingWindowPaneRef.current = null;
     setDrawerRevealRevision((revision) => revision + 1);
+
+    const loadAndCommit = async (): Promise<boolean> => {
+      const switchEpoch = ++windowSwitchRef.current;
+      const rememberedPaneId = getLastPane(selectedWindow.id);
+      const preferredPaneId = selection.paneId || rememberedPaneId;
+      const paneRequest = getPanes(selectedWindow.id, { fresh: true });
+      paneRequestsRef.current.set(selectedWindow.id, paneRequest);
+      pendingWindowPaneRef.current = {
+        windowId: selectedWindow.id,
+        initialPaneId: preferredPaneId || selectedWindow.activePaneId || '',
+        rememberedPaneId,
+        request: paneRequest,
+      };
+      setSessionLoading(true);
+      try {
+        const panes = await paneRequest;
+        if (switchEpoch !== windowSwitchRef.current || selectionEpoch !== sessionSelectionRef.current) return false;
+        // An empty response means the target no longer has a usable pane. Keep the previous complete
+        // workspace mounted; a non-empty /panes response is the authoritative snapshot for this window.
+        if (!panes.length) return false;
+        const paneId = selection.paneId && panes.some((pane) => pane.id === selection.paneId)
+          ? selection.paneId : pickId(panes, rememberedPaneId);
+        const hydratedWindow = {
+          ...selectedWindow,
+          panes: panes.length,
+          paneList: panes.map((pane) => ({ ...pane })),
+        };
+        const hydratedWindows = windows.map((item) => item.id === hydratedWindow.id ? hydratedWindow : item);
+        // The request is authoritative for the next topology poll, so consume it instead of issuing a
+        // duplicate lookup after the current Window id changes.
+        prefetchedPanesRef.current.set(selectedWindow.id, panes);
+        setControlsRevision((revision) => revision + 1);
+        setCurrent((current) => {
+          if (current && current.session.id !== session.id) return current;
+          return { session, windows: hydratedWindows, window: hydratedWindow, panes, paneId };
+        });
+        writeSessionHash(session.name);
+        remember({ sessionId: session.id, windowId: selectedWindow.id, paneId });
+        return true;
+      } catch (error) {
+        handledAuth(error);
+        return false;
+      } finally {
+        if (pendingWindowPaneRef.current?.windowId === selectedWindow.id
+          && pendingWindowPaneRef.current.request === paneRequest) pendingWindowPaneRef.current = null;
+        if (paneRequestsRef.current.get(selectedWindow.id) === paneRequest) paneRequestsRef.current.delete(selectedWindow.id);
+        if (selectionEpoch === sessionSelectionRef.current) setSessionLoading(false);
+      }
+    };
 
     const existing = currentRef.current;
     if (existing?.session.id === session.id
       && existing.window.id === selectedWindow.id
       && existing.panes.length > 0) {
       // Re-tapping the visible Window is a no-op, unless an Inbox deep-link names another pane in
-      // that same window. Move the pane highlight immediately when it is cached; if it is stale,
-      // keep the requested id visible while one background lookup refreshes the pane list.
+      // that same window. A stale deep-link is resolved below without clearing the current snapshot.
       const requestedPane = selection.paneId || '';
       if (requestedPane && requestedPane !== existing.paneId) {
-        setControlsRevision((revision) => revision + 1);
         if (existing.panes.some((pane) => pane.id === requestedPane)) {
+          setControlsRevision((revision) => revision + 1);
           setCurrent((current) => (current && current.session.id === session.id && current.window.id === selectedWindow.id
             ? { ...current, paneId: requestedPane } : current));
           remember({ sessionId: session.id, windowId: selectedWindow.id, paneId: requestedPane });
         } else {
-          const paneEpoch = ++windowSwitchRef.current;
-          setCurrent((current) => (current && current.session.id === session.id && current.window.id === selectedWindow.id
-            ? { ...current, panes: [], paneId: requestedPane } : current));
-          void getPanes(selectedWindow.id).then((panes) => {
-            if (paneEpoch !== windowSwitchRef.current) return;
-            const paneId = panes.some((pane) => pane.id === requestedPane)
-              ? requestedPane
-              : pickId(panes, getLastPane(selectedWindow.id));
-            setCurrent((current) => (current && current.session.id === session.id && current.window.id === selectedWindow.id
-              ? { ...current, panes, paneId } : current));
-            if (paneId) remember({ sessionId: session.id, windowId: selectedWindow.id, paneId });
-          }).catch(() => { /* topology polling retries the pane lookup */ });
+          // Fall through to one fresh lookup. Do not publish the requested id with an empty pane list:
+          // that intermediate state is what caused the WindowBar to render twice.
+          return await loadAndCommit();
         }
       }
       setSessionLoading(false);
       return true;
     }
 
-    // A cached pane id can be stale after tmux recreates a window. Only the server's activePaneId
-    // is safe to mount immediately; when it is absent, keep the new WindowBar visible with a
-    // lightweight pane-less surface until the background lookup returns.
-    // Inbox deep-links can provide the exact pane that produced the notification. Prefer it over
-    // the window's active pane so the shared selector lands on the same pane immediately; the
-    // background topology poll will replace it if that pane has since disappeared.
-    const prefetchedPanes = selection.panes?.map((pane) => ({ ...pane })) as HostPane[] | undefined;
-    const paneIdHint = selection.paneId || selectedWindow.activePaneId || prefetchedPanes?.[0]?.id || '';
-    if (prefetchedPanes?.length && (selection.panesAreEnriched
-      || prefetchedPanes.every((pane) => Object.hasOwn(pane, 'agent')))) {
-      prefetchedPanesRef.current.set(selectedWindow.id, prefetchedPanes);
-    }
-    ++windowSwitchRef.current;
-    // Commit the new session and window before asking the server for panes. This transfers the
-    // Drawer highlight and updates the title/window bar while the pane surface catches up.
-    setControlsRevision((revision) => revision + 1);
-    setCurrent({ session, windows, window: selectedWindow, panes: prefetchedPanes || [], paneId: paneIdHint });
-    setSessionLoading(false);
-    writeSessionHash(session.name);
-    if (paneIdHint) remember({ sessionId: session.id, windowId: selectedWindow.id, paneId: paneIdHint });
-    // The topology polling loop sees this new key and performs the single background getPanes call.
-    // Keeping that responsibility in one place avoids two concurrent pane requests on every switch.
-    return true;
-  }, []);
+    return await loadAndCommit();
+  }, [handledAuth]);
 
   // Non-drawer entry points only have a bound session name, so they still resolve the live session
   // and use the full open path below.
@@ -1437,15 +1463,14 @@ export default function App() {
     try {
       const session = (await getSessions()).find((s) => s.name === row.session);
       if (!session) { window.alert(t('app.sessionGone', { name: row.session })); return false; }
-      // Resolve the window outline once, then use the same cached selector as Drawer taps. This
-      // commits Session + Window + requested Pane together; only the pane detail is filled by the
-      // existing background topology poll.
+      // Resolve the window outline once, then use the same selector as Drawer taps. The selector fetches
+      // a fresh pane snapshot and commits Session + Window + requested Pane together.
       const windows = await getWindows(session.id);
       const targetWindow = windows.find((candidate) => candidate.id === row.window);
       if (!targetWindow) return false;
       if (selectionEpoch !== sessionSelectionRef.current) return false;
       setDrawerOpen(false);
-      const opened = selectCachedSession({ session, windows, window: targetWindow, paneId: row.pane });
+      const opened = await selectCachedSession({ session, windows, window: targetWindow, paneId: row.pane });
       if (opened && row.view === 'done') {
         setCompletedChatEntry({
           paneId: row.pane,
@@ -1521,6 +1546,9 @@ export default function App() {
   }, []);
 
   const selectPane = useCallback((paneId: string) => {
+    // Selecting a pane is also a navigation decision. Cancel an older in-flight Window switch so its
+    // response cannot overwrite this user's explicit pane choice.
+    ++windowSwitchRef.current;
     pendingWindowPaneRef.current = null;
     setControlsRevision((revision) => revision + 1);
     setCurrent((c) => {
@@ -1537,6 +1565,7 @@ export default function App() {
   const refreshPanes = useCallback((windowId: string, panes: HostPane[]) => {
     setCurrent((c) => {
       if (!c) return c;
+      if (!c.windows.some((w) => w.id === windowId)) return c;
       const windows = c.windows.map((w) => (w.id === windowId
         ? { ...w, panes: panes.length, paneList: panes.map((pane) => ({ ...pane })) }
         : w));

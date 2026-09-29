@@ -573,6 +573,13 @@ export default function Drawer({
           setWindowPanes((current) => {
             let next = current;
             for (const snapshot of paneSnapshots) {
+              // `/sessions/topology` reads windows and panes in parallel. During a split/close or
+              // reconnect those two reads can describe different instants, so a paneList shorter
+              // than the window's declared count is an incomplete snapshot. Keep the last complete
+              // value visible until a coherent snapshot arrives; publishing the partial list here
+              // would make a later tap briefly render a plain Window before App fetches the rest.
+              const sourceWindow = windowRows.flatMap((rows) => rows).find((window) => window.id === snapshot.id);
+              if (sourceWindow && snapshot.panes.length < sourceWindow.panes) continue;
               const previous = current[snapshot.id] || [];
               const previousById = new Map(previous.map((pane) => [pane.id, pane] as const));
               const merged = snapshot.panes.map((pane) => {
