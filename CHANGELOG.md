@@ -4,6 +4,8 @@ All notable changes to handmux. Format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-09-30
+
 ### Added
 
 - 为每次部署生成简短构建 ID，并让启动信息、服务版本响应和前端使用同一份构建身份。
