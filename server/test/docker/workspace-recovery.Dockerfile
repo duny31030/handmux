@@ -19,6 +19,7 @@ COPY bin ./bin
 COPY connectors ./connectors
 COPY hooks ./hooks
 COPY scripts/build-server.mjs ./scripts/build-server.mjs
+COPY scripts/write-build-meta.mjs ./scripts/write-build-meta.mjs
 RUN npm run build:server
 COPY test ./test
 COPY vitest.config.js ./
