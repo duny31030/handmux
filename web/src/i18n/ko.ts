@@ -312,6 +312,7 @@ export default {
   'app.files': '파일',
   'app.settings': '설정',
   'app.renameSession': '세션 이름 변경',
+  'app.manageSession': '세션 관리',
   'app.renameWindow': '창 이름 변경',
   'app.moveLeft': '앞으로 이동',
   'app.moveRight': '뒤로 이동',

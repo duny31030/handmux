@@ -792,6 +792,15 @@ export default function Drawer({
                 ><ChevronDownIcon /></button>
               <button
                 type="button"
+                className="session-section-new"
+                onClick={(event: MouseEvent<HTMLButtonElement>) => {
+                  event.stopPropagation(); onNewWindow(name);
+                }}
+                aria-label={`${name} ${t('windowbar.newWindow')}`}
+                title={t('windowbar.newWindow')}
+              ><PlusIcon /></button>
+              <button
+                type="button"
                 className="session-section-menu"
                 onClick={(event: MouseEvent<HTMLButtonElement>) => {
                   event.stopPropagation(); setMenuSession(name);
@@ -994,10 +1003,10 @@ export default function Drawer({
       />
       <ActionSheet
         open={!!menuSession}
-        title={menuSession || ''}
+        title={t('app.manageSession')}
+        subtitle={menuSession || ''}
         onClose={() => setMenuSession(null)}
         actions={menuSession ? [
-          { key: 'new-window', icon: <PlusIcon />, label: t('windowbar.newWindow'), onClick: () => { onNewWindow(menuSession); setMenuSession(null); } },
           ...(bound.length > 1 ? [[
             {
               key: 'move-session-up', icon: <ArrowUpIcon />, label: t('app.moveLeft'),

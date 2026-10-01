@@ -933,6 +933,7 @@ export default {
   'apiBalance.error.account_limit_reached': '最多可保存 1000 个 API 账户 · 请删除不用的账户后再试',
   'apiBalance.error.not_found': '账户已在其他位置删除 · 请关闭此窗口后刷新',
   'app.renameSession': '重命名会话',
+  'app.manageSession': '会话管理',
   'app.deleteSession': '删除会话',
   'app.deleteSessionConfirm': '确认删除整个会话？再点一次',
   'app.renameWindow': '重命名窗口',

@@ -104,7 +104,7 @@ import DirPicker from './components/DirPicker.jsx';
 import DocLinkPopover from './components/DocLinkPopover.jsx';
 import IdeaPanel from './components/IdeaPanel.jsx';
 import Changelog from './components/Changelog.jsx';
-import { FolderIcon, BulbIcon, MonitorIcon, GlobeIcon, GitIcon, GaugeIcon, SplitHIcon, SplitVIcon, PaneMapIcon, XIcon } from './components/icons.jsx';
+import { FolderIcon, BulbIcon, MonitorIcon, GlobeIcon, GitIcon, GaugeIcon, ArrowUpIcon, PencilIcon, SplitHIcon, SplitVIcon, PaneMapIcon, XIcon } from './components/icons.jsx';
 import { useKeyboardInset } from './hooks/useKeyboardInset.js';
 import { useAsrAvailable } from './voice/useAsrAvailable.js';
 import { usePageScrollLock } from './hooks/usePageScrollLock.js';
@@ -3018,14 +3018,14 @@ export default function App() {
           <BulbIcon />
           {ideaCount > 0 && <span className="idea-badge">{ideaCount}</span>}
         </button>
-        {inboxControl}
         <button className="topbar-icon" onClick={() => setUsageOpen(true)} aria-label={t('usage.title')} title={t('usage.title')}><GaugeIcon /></button>
         <button className={`topbar-icon browser-entry${browserStatus ? ` ${browserStatus}` : ''}`}
           onClick={() => browser.setOpen(true)} aria-label={t('app.browser')} title={t('app.browser')}>
           <GlobeIcon />
         </button>
-        <button className="topbar-icon" onClick={reopenFiles} aria-label={t('app.files')} title={t('app.files')}><FolderIcon /></button>
         <button className="topbar-icon" onClick={() => setGitOpen(true)} aria-label="Git" title="Git"><GitIcon /></button>
+        <button className="topbar-icon" onClick={reopenFiles} aria-label={t('app.files')} title={t('app.files')}><FolderIcon /></button>
+        {inboxControl}
       </header>}
       <UsagePage
         open={usageOpen}
@@ -3218,24 +3218,24 @@ export default function App() {
           // NOT close the sheet — moveManagedWindow keeps it open for the next nudge.
           ...(current && current.windows.length > 1 ? [[
             {
-              key: 'move-left', label: t('app.moveLeft'),
+              key: 'move-left', icon: <ArrowUpIcon />, label: t('app.moveLeft'),
               disabled: !moveTarget(current.windows, manageWindow.id, 'left'),
               onClick: () => moveManagedWindow('left'),
             },
             {
-              key: 'move-right', label: t('app.moveRight'),
+              key: 'move-right', icon: <span className="drawer-order-icon-down"><ArrowUpIcon /></span>, label: t('app.moveRight'),
               disabled: !moveTarget(current.windows, manageWindow.id, 'right'),
               onClick: () => moveManagedWindow('right'),
             },
           ]] : []),
           {
-            key: 'rename', label: t('common.rename'),
+            key: 'rename', icon: <PencilIcon />, label: t('common.rename'),
             onClick: () => { setRenameTarget({ kind: 'window', id: manageWindow.id, name: manageWindow.name || '' }); setManageWindow(null); },
           },
           // Deleting the session's last window takes the whole session down — still allowed, but the
           // confirm step warns about it explicitly (a normal window just confirms the delete).
           {
-            key: 'delete', label: t('app.deleteWindow'), danger: true, confirm: true,
+            key: 'delete', icon: <XIcon />, label: t('app.deleteWindow'), danger: true, confirm: true,
             confirmLabel: current && current.windows.length <= 1
               ? t('app.deleteLastWindowConfirm')
               : t('app.deleteConfirm'),

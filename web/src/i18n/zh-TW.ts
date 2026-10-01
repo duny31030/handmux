@@ -310,6 +310,7 @@ export default {
   'app.files': '檔案',
   'app.settings': '設定',
   'app.renameSession': '重新命名工作階段',
+  'app.manageSession': '工作階段管理',
   'app.renameWindow': '重新命名視窗',
   'app.moveLeft': '前移',
   'app.moveRight': '後移',

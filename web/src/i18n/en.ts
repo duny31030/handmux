@@ -936,6 +936,7 @@ export default {
   'apiBalance.error.account_limit_reached': 'Up to 1,000 API accounts can be saved · delete an unused account and try again',
   'apiBalance.error.not_found': 'The account was deleted elsewhere · close this window and refresh',
   'app.renameSession': 'Rename session',
+  'app.manageSession': 'Session Management',
   'app.deleteSession': 'Delete session',
   'app.deleteSessionConfirm': 'Delete the entire session? Tap again',
   'app.renameWindow': 'Rename window',

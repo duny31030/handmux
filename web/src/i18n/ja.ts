@@ -312,6 +312,7 @@ export default {
   'app.files': 'ファイル',
   'app.settings': '設定',
   'app.renameSession': 'セッション名を変更',
+  'app.manageSession': 'セッション管理',
   'app.renameWindow': 'ウィンドウ名を変更',
   'app.moveLeft': '前へ移動',
   'app.moveRight': '後ろへ移動',
