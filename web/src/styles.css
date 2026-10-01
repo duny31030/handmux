@@ -1128,7 +1128,7 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .session-section-toggle:not(.is-open) svg { transform:rotate(-90deg); }
 .session-section-toggle:active { color:rgba(235,235,245,.70); }
 .session-section-new { flex:none; display:grid; place-items:center; width:40px; height:40px; margin-left:auto; padding:0; border:0; border-radius:0; background:transparent !important; box-shadow:none !important; color:rgba(235,235,245,.88); -webkit-tap-highlight-color:transparent; }
-.session-section-new svg { width:20px; height:20px; }
+.session-section-new svg { width:20px; height:20px; transform:translateX(4px); }
 .session-section-new:active { background:transparent; color:#fff; }
 .session-section-menu { flex:none; display:grid; place-items:center; width:40px; height:40px; margin-left:0; padding:0; border:0; border-radius:0; background:transparent !important; box-shadow:none !important; color:rgba(235,235,245,.88); -webkit-tap-highlight-color:transparent; }
 .session-section-menu svg { width:20px; height:20px; opacity:1; }
