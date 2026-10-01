@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { t } from '../i18n';
 import { fetchPaneCwd } from '../api.js';
 import { getLastStartupCmd, setLastStartupCmd } from '../storage.js';
@@ -39,18 +39,16 @@ export default function NewWindowModal({ open, onClose, onCreate, paneId, inset 
   const [defaultCwd, setDefaultCwd] = useState(''); // pane cwd, shown as the default label
   const [cmd, setCmd] = useState<string>(startupCommand); // startup command; sticky to your last choice
   const [pickerOpen, setPickerOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!open) return undefined;
     let cancelled = false;
     setName(''); setError(''); setBusy(false); setCwd(null); setDefaultCwd(''); setPickerOpen(false);
-    const focusTimer = setTimeout(() => inputRef.current?.focus(), 0);
     if (paneId) fetchPaneCwd(paneId).then((response) => {
       const paneCwd = cwdOf(response);
       if (!cancelled) setDefaultCwd(paneCwd || '');
     }).catch(() => {});
-    return () => { cancelled = true; clearTimeout(focusTimer); };
+    return () => { cancelled = true; };
   }, [open, paneId]);
   useBackButton(open && pickerOpen, () => setPickerOpen(false));
 
@@ -86,7 +84,6 @@ export default function NewWindowModal({ open, onClose, onCreate, paneId, inset 
           <div className="opt">
             <div className="settings-label">{t('newwindow.window_name')}</div>
             <input
-              ref={inputRef}
               className="bind-input"
               value={name}
               placeholder={t('newwindow.name_placeholder')}
