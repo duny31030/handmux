@@ -1130,10 +1130,10 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .session-section-new { flex:none; display:grid; place-items:center; width:20px; height:20px; margin-left:auto; padding:0; border:0; border-radius:0; background:transparent !important; box-shadow:none !important; color:rgba(235,235,245,.88); -webkit-tap-highlight-color:transparent; }
 .session-section-new svg { width:20px; height:20px; }
 .session-section-new:active { background:transparent; color:#fff; }
-.session-section-menu { flex:none; display:grid; place-items:center; width:40px; height:40px; margin-left:0; padding:0; border:0; border-radius:0; background:transparent !important; box-shadow:none !important; color:rgba(235,235,245,.88); -webkit-tap-highlight-color:transparent; }
+.session-section-menu { flex:none; display:grid; place-items:center; width:20px; height:20px; margin-left:0; padding:0; border:0; border-radius:0; background:transparent !important; box-shadow:none !important; color:rgba(235,235,245,.88); -webkit-tap-highlight-color:transparent; }
 .session-section-menu svg { width:20px; height:20px; opacity:1; }
 .session-section-menu:active { background:transparent; color:#fff; }
-.session-section-title { flex:0 1 auto; min-width:0; max-width:calc(100% - 110px); height:36px; display:flex; align-items:center; gap:0; padding:0; border:0; background:transparent !important; box-shadow:none !important; color:rgba(255,255,255,.94); text-align:left; font:15px/20px -apple-system,BlinkMacSystemFont,sans-serif; font-weight:700; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+.session-section-title { flex:0 1 auto; min-width:0; max-width:calc(100% - 70px); height:36px; display:flex; align-items:center; gap:0; padding:0; border:0; background:transparent !important; box-shadow:none !important; color:rgba(255,255,255,.94); text-align:left; font:15px/20px -apple-system,BlinkMacSystemFont,sans-serif; font-weight:700; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
 .session-section-icon { position:relative; flex:none; display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; margin-right:8px; color:rgba(235,235,245,.62); }
 .session-section-icon svg { width:17px; height:17px; }
 .session-inbox-dot { position:absolute; top:-2px; right:-3px; width:7px; height:7px; border:1px solid rgba(235,235,245,.52); border-radius:50%; background:rgba(235,235,245,.42); }
@@ -1178,7 +1178,7 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .session-window-row.is-current .session-window-pane-trigger.is-open,
 .session-window-row[aria-current="page"] .session-window-pane-trigger.is-open { background:rgba(255,255,255,.16); }
 .session-window-pane-trigger.is-open:active { background:rgba(255,255,255,.18); }
-.session-window-menu { flex:none; width:40px; height:38px; margin-left:0; padding:0; display:grid; place-items:center; border:0; border-radius:0; background:transparent !important; box-shadow:none !important; color:rgba(235,235,245,.88); -webkit-tap-highlight-color:transparent; }
+.session-window-menu { flex:none; width:20px; height:20px; margin-left:0; padding:0; display:grid; place-items:center; border:0; border-radius:0; background:transparent !important; box-shadow:none !important; color:rgba(235,235,245,.88); -webkit-tap-highlight-color:transparent; }
 .session-window-menu svg { width:20px; height:20px; }
 .session-window-menu:active { background:transparent !important; color:#fff; }
 .session-window-row:has(.session-window-menu:active) { background:transparent; }
