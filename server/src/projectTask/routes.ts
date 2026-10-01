@@ -137,6 +137,16 @@ export function projectTaskRoutes({ runtime }: { runtime: ProjectTaskRuntime }):
   };
 
   router.post('/tasks/:id/promote', taskCommand('promoteTask'));
+  router.post('/tasks/:id/status', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = bodyRecord(req.body, 'TASK_VALIDATION');
+      onlyFields(body, ['status', 'expectedVersion'], 'TASK_VALIDATION');
+      res.json(await runtime.requireStore().setTaskStatus(req.params.id ?? '', {
+        status: body.status,
+        expectedVersion: body.expectedVersion,
+      }));
+    } catch (error) { forward(error, next); }
+  });
   router.post('/tasks/:id/cancel', taskCommand('cancelTask'));
   router.post('/tasks/:id/archive', taskCommand('archiveTask'));
 

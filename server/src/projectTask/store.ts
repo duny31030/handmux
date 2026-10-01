@@ -77,6 +77,7 @@ export interface ProjectTaskStore {
   createTask(input: Record<string, unknown>): Promise<Task>;
   updateTask(id: string, input: Record<string, unknown>): Promise<Task>;
   promoteTask(id: string, input: { expectedVersion?: unknown }): Promise<Task>;
+  setTaskStatus(id: string, input: { status?: unknown; expectedVersion?: unknown }): Promise<Task>;
   cancelTask(id: string, input: { expectedVersion?: unknown }): Promise<Task>;
   archiveTask(id: string, input: { expectedVersion?: unknown }): Promise<Task>;
   listTaskEvents(id: string): Promise<TaskEvent[]>;
@@ -197,8 +198,15 @@ function priority(value: unknown): TaskPriority {
 }
 
 function status(value: unknown): Exclude<TaskStatus, 'canceled'> {
-  if (value !== 'draft' && value !== 'ready') {
-    throw new ProjectTaskError('TASK_VALIDATION', 400, 'status must be draft or ready');
+  if (value !== 'draft' && value !== 'ready' && value !== 'in-progress' && value !== 'completed') {
+    throw new ProjectTaskError('TASK_VALIDATION', 400, 'status must be draft, ready, in-progress, or completed');
+  }
+  return value;
+}
+
+function nextStatus(value: unknown): Exclude<TaskStatus, 'draft' | 'canceled'> {
+  if (value !== 'ready' && value !== 'in-progress' && value !== 'completed') {
+    throw new ProjectTaskError('TASK_VALIDATION', 400, 'status must be ready, in-progress, or completed');
   }
   return value;
 }
@@ -401,11 +409,15 @@ export function createProjectTaskStore(
       const clauses: Record<string, string> = {
         tasks: "archived_at IS NULL AND status = 'ready'",
         drafts: "archived_at IS NULL AND status = 'draft'",
+        ready: "archived_at IS NULL AND status = 'ready'",
+        'in-progress': "archived_at IS NULL AND status = 'in-progress'",
+        completed: "archived_at IS NULL AND status IN ('completed', 'canceled')",
+        all: 'archived_at IS NULL',
         canceled: "archived_at IS NULL AND status = 'canceled'",
         archived: 'archived_at IS NOT NULL',
       };
       if (typeof bucket !== 'string' || !Object.hasOwn(clauses, bucket)) {
-        throw new ProjectTaskError('TASK_VALIDATION', 400, 'bucket must be tasks, drafts, canceled, or archived');
+        throw new ProjectTaskError('TASK_VALIDATION', 400, 'bucket must be all, tasks, drafts, ready, in-progress, completed, canceled, or archived');
       }
       const rows = db.prepare(`
         SELECT id, project_id, title, objective, acceptance_criteria_json, scope, constraints,
@@ -446,7 +458,7 @@ export function createProjectTaskStore(
         updatedAt: '',
       };
       task.updatedAt = task.createdAt;
-      if (task.status === 'ready') validateReady(task);
+      if (task.status !== 'draft') validateReady(task);
 
       transaction(() => {
         db.prepare(`
@@ -496,7 +508,7 @@ export function createProjectTaskStore(
         references: Object.hasOwn(input, 'references') ? references(input.references) : current.references,
         priority: Object.hasOwn(input, 'priority') ? priority(input.priority) : current.priority,
       };
-      if (next.status === 'ready') validateReady(next);
+      if (next.status !== 'draft' && next.status !== 'canceled') validateReady(next);
       const changedFields = [
         ...BRIEF_FIELDS.filter((field) => !sameJson(current[field], next[field])),
         ...(current.priority === next.priority ? [] : ['priority']),
@@ -548,6 +560,30 @@ export function createProjectTaskStore(
           UPDATE tasks SET status = 'ready', version = ?, updated_at = ? WHERE id = ? AND version = ?
         `).run(next.version, next.updatedAt, id, current.version);
         appendTaskEvent(next, 'task.promoted', { from: 'draft', to: 'ready' });
+      });
+      notifyWrite();
+      return requireTask(id);
+    },
+
+    async setTaskStatus(id, input): Promise<Task> {
+      const current = requireTask(id);
+      assertTaskProjectActive(current);
+      assertTaskVersion(current, input.expectedVersion);
+      if (current.archivedAt || current.status === 'canceled') {
+        throw new ProjectTaskError('TASK_TRANSITION_INVALID', 409, 'This task cannot change status');
+      }
+      const nextValue = nextStatus(input.status);
+      if (current.status === nextValue) return current;
+      if (current.status === 'draft') {
+        throw new ProjectTaskError('TASK_TRANSITION_INVALID', 409, 'Save the draft as a task before changing status');
+      }
+      validateReady(current);
+      const next = { ...current, status: nextValue, version: current.version + 1, updatedAt: now().toISOString() };
+      transaction(() => {
+        db.prepare(`
+          UPDATE tasks SET status = ?, version = ?, updated_at = ? WHERE id = ? AND version = ?
+        `).run(next.status, next.version, next.updatedAt, id, current.version);
+        appendTaskEvent(next, 'task.updated', { changedFields: ['status'], from: current.status, to: next.status });
       });
       notifyWrite();
       return requireTask(id);

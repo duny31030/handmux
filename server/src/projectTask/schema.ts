@@ -1,8 +1,12 @@
-export const PROJECT_TASK_SCHEMA_VERSION = 3;
+export const PROJECT_TASK_SCHEMA_VERSION = 4;
 
 export type ProjectAgent = 'codex' | 'claude';
 export type ProjectExecutionMode = 'project-root' | 'worktree';
-export type TaskStatus = 'draft' | 'ready' | 'canceled';
+// `draft` is kept as the pre-confirmation state. The three user-facing task
+// states are ready (待开始), in-progress (进行中), and completed (已完成).
+// `canceled` remains a legacy terminal state so old data and event history are
+// not rewritten during migration.
+export type TaskStatus = 'draft' | 'ready' | 'in-progress' | 'completed' | 'canceled';
 export type TaskPriority = 'none' | 'high' | 'medium' | 'low';
 
 export interface Project {

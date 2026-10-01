@@ -62,7 +62,7 @@ describe('phase two shared device management', () => {
     v2.exec('ALTER TABLE auth_devices DROP COLUMN version; PRAGMA user_version = 2'); v2.close();
     runtime = await createProjectTaskRuntime({ home });
     service = new DeviceAuthService({ db: runtime.requireDatabase() });
-    expect(runtime.status().schemaVersion).toBe(3);
+    expect(runtime.status().schemaVersion).toBe(4);
     expect(service.list()[0]).toEqual(oldDevice); expect(runtime.requireDatabase().prepare('SELECT * FROM auth_sessions').get()).toEqual(oldSession);
     expect(service.authenticateSecret(p.secret!, origin)?.deviceId).toBe(oldDevice.id);
     service.close(); await runtime.close();

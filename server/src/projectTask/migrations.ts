@@ -99,6 +99,12 @@ export function migrateProjectDatabase(db: DatabaseSync): number {
   }
   if (current === PROJECT_TASK_SCHEMA_VERSION) return current;
 
+  // Rebuilding `tasks` changes the table that `task_events` references. SQLite
+  // only permits dropping that parent while foreign-key enforcement is off;
+  // the migration is still guarded by the surrounding transaction and the
+  // pragma is restored before returning.
+  const rebuildTasks = current < 4;
+  if (rebuildTasks) db.exec('PRAGMA foreign_keys = OFF');
   db.exec('BEGIN IMMEDIATE');
   try {
     if (current === 0) db.exec(V1_SCHEMA);
@@ -113,10 +119,47 @@ export function migrateProjectDatabase(db: DatabaseSync): number {
       }
     }
     if (current < 3) db.exec('ALTER TABLE auth_devices ADD COLUMN version INTEGER NOT NULL DEFAULT 1 CHECK(version >= 1)');
+    if (current < 4) {
+      // Schema 1 created the task status check before the three-state task
+      // lifecycle was finalized. Rebuild the table so existing rows keep their
+      // status and event history while accepting the new values.
+      db.exec(`
+        CREATE TABLE tasks_v4 (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE RESTRICT,
+          title TEXT NOT NULL CHECK(length(trim(title)) BETWEEN 1 AND 240),
+          objective TEXT NOT NULL DEFAULT '',
+          acceptance_criteria_json TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(acceptance_criteria_json)),
+          scope TEXT,
+          constraints TEXT,
+          references_json TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(references_json)),
+          status TEXT NOT NULL CHECK(status IN ('draft', 'ready', 'in-progress', 'completed', 'canceled')),
+          priority TEXT NOT NULL DEFAULT 'none' CHECK(priority IN ('none', 'high', 'medium', 'low')),
+          brief_version INTEGER NOT NULL DEFAULT 1 CHECK(brief_version >= 1),
+          version INTEGER NOT NULL DEFAULT 1 CHECK(version >= 1),
+          archived_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+        INSERT INTO tasks_v4 (
+          id, project_id, title, objective, acceptance_criteria_json, scope, constraints,
+          references_json, status, priority, brief_version, version, archived_at, created_at, updated_at
+        ) SELECT
+          id, project_id, title, objective, acceptance_criteria_json, scope, constraints,
+          references_json, status, priority, brief_version, version, archived_at, created_at, updated_at
+        FROM tasks;
+        DROP TABLE tasks;
+        ALTER TABLE tasks_v4 RENAME TO tasks;
+        CREATE INDEX tasks_project_status_updated
+        ON tasks(project_id, status, archived_at, updated_at DESC);
+      `);
+    }
     db.exec(`PRAGMA user_version = ${PROJECT_TASK_SCHEMA_VERSION}`);
     db.exec('COMMIT');
+    if (rebuildTasks) db.exec('PRAGMA foreign_keys = ON');
   } catch (error) {
     try { db.exec('ROLLBACK'); } catch { /* transaction already closed */ }
+    if (rebuildTasks) db.exec('PRAGMA foreign_keys = ON');
     throw error;
   }
   return PROJECT_TASK_SCHEMA_VERSION;
