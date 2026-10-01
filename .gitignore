@@ -26,6 +26,7 @@ monitor.sh
 
 # runtime data (push subscriptions — device endpoints, not source)
 server/data/
+.handmux-dev/
 
 # generated at pack time by scripts/bundle-web.mjs (shipped via package.json "files", not committed)
 server/public/

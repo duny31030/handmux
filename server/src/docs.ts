@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import { assertRequestAuthority } from './requestAuthority.js';
 import { homedir } from 'node:os';
-import { join, basename } from 'node:path';
+import { delimiter, join, basename } from 'node:path';
 import { TextDecoder } from 'node:util';
 import { docTypeFor, imageTypeFor, isUnder, hasHiddenSegment } from './docPath.js';
 import type { Dirent } from 'node:fs';
@@ -317,8 +317,9 @@ export function createDocs({ home, extraRoots = [], maxDownloadBytes = MAX_TRANS
   return { readDoc, listDir, statForDownload, resolveUploadDir, resolveStashDir, resolveCwd, makeDir };
 }
 
-// The extra (outside-$HOME) roots the file browser may reach: the system temp dir and, if set, the
-// per-user $TMPDIR (on macOS that's /var/folders/.../T). Missing ones are skipped at resolve time.
+// The extra (outside-$HOME) roots the file browser may reach: the system temp dir, the per-user
+// $TMPDIR (on macOS that's /var/folders/.../T), and any caller-provided HANDMUX_EXTRA_ROOTS entries.
+// Missing ones are skipped at resolve time.
 function errorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) return undefined;
   return typeof error.code === 'string' ? error.code : undefined;
@@ -327,6 +328,7 @@ function errorCode(error: unknown): string | undefined {
 export function defaultExtraRoots(env: NodeJS.ProcessEnv = process.env): string[] {
   const roots = ['/tmp'];
   if (env.TMPDIR) roots.push(env.TMPDIR);
+  if (env.HANDMUX_EXTRA_ROOTS) roots.push(...env.HANDMUX_EXTRA_ROOTS.split(delimiter));
   return roots;
 }
 

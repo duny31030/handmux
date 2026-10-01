@@ -7,6 +7,12 @@ import path from 'node:path';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const serverPackage = JSON.parse(readFileSync(path.resolve(here, '../server/package.json'), 'utf8'));
 const buildMetaPath = path.resolve(here, '../server/build-meta.json');
+const devApiPort = Number(process.env.HANDMUX_DEV_API_PORT || 9999);
+const devWebPort = Number(process.env.HANDMUX_DEV_WEB_PORT || 9010);
+const devApiHost = process.env.HANDMUX_DEV_API_HOST || '127.0.0.1';
+const devApiTargetHost = devApiHost.includes(':') && !devApiHost.startsWith('[')
+  ? `[${devApiHost}]` : devApiHost;
+const devApiOrigin = `http://127.0.0.1:${devApiPort}`;
 let buildMeta = null;
 try {
   const value = JSON.parse(readFileSync(buildMetaPath, 'utf8'));
@@ -69,13 +75,15 @@ export default defineConfig({
   plugins: [resolveMigratedTypeScript(), react(), asyncAppCss()],
   server: {
     host: true,
-    port: 9010, // 开发前端(vite dev)监听端口；它把 /api 代理到后端 9999
+    port: devWebPort, // 开发前端(vite dev)监听端口；API 端口可由 HANDMUX_DEV_API_PORT 覆盖
     proxy: {
-      // 指向【开发】后端(`node bin/handmux.js start` 读项目里的 ./config.json,端口 9999),
-      // 而非生产。改了 dev config 的端口要同步这里。用 127.0.0.1(而非 localhost)强制 IPv4,避免
-      // localhost 先解析到 ::1 与后端绑定的 0.0.0.0(IPv4) 不匹配导致代理 ECONNREFUSED。
-      '/api': 'http://127.0.0.1:9999',
-      '/ws': { target: 'ws://127.0.0.1:9999', ws: true },
+      // 只指向开发后端而非生产；dev.sh 会注入 9998，单独运行 Vite 时默认 9999。
+      // 用 127.0.0.1(而非 localhost)强制 IPv4,避免 localhost 先解析到 ::1 与后端绑定的
+      // 0.0.0.0(IPv4) 不匹配导致代理 ECONNREFUSED。
+      // 开发 API 只监听 loopback。重写 Origin 让后端的 origin protection 把代理请求视为
+      // API 入口；浏览器仍然只接触 Vite 的开发入口，不会把生产 API 混进来。
+      '/api': { target: `http://${devApiTargetHost}:${devApiPort}`, changeOrigin: true, headers: { origin: devApiOrigin } },
+      '/ws': { target: `ws://${devApiTargetHost}:${devApiPort}`, ws: true, changeOrigin: true, headers: { origin: devApiOrigin } },
     },
   },
   test: {
