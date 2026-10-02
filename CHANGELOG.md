@@ -4,6 +4,8 @@ All notable changes to handmux. Format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.33.2] - 2026-10-03
+
 ### Fixed
 
 - 修复 v0.33.1 发布包的构建兼容问题，v0.33.2 使用通过验证的构建重新发布。
