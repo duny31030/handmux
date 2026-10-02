@@ -1348,7 +1348,11 @@ export default function App() {
         prefetchedPanesRef.current.set(selectedWindow.id, panes);
         setControlsRevision((revision) => revision + 1);
         setCurrent((current) => {
-          if (current && current.session.id !== session.id) return current;
+          // A different Session is the intended result of a drawer selection. Only discard this
+          // commit when a newer selection/window switch has superseded the request while it awaited panes.
+          if (selectionEpoch !== sessionSelectionRef.current || switchEpoch !== windowSwitchRef.current) {
+            return current;
+          }
           return { session, windows: hydratedWindows, window: hydratedWindow, panes, paneId };
         });
         writeSessionHash(session.name);
