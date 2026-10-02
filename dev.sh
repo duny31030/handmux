@@ -472,6 +472,7 @@ start_dev() {
 
   echo "==> starting Vite on $WEB_HOST:$WEB_PORT"
   (
+    export HANDMUX_APP_NAME=dev
     export HANDMUX_DEV_API_PORT="$API_PORT"
     export HANDMUX_DEV_WEB_PORT="$WEB_PORT"
     export HANDMUX_DEV_API_HOST="$API_HOST"
