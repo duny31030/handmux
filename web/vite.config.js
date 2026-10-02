@@ -85,8 +85,7 @@ function appNameShell() {
       const escaped = escapeHtml(appName);
       return html
         .replace(/<title>[^<]*<\/title>/, `<title>${escaped}</title>`)
-        .replace(/(<meta name="apple-mobile-web-app-title" content=")[^"]*(")/, `$1${escaped}$2`)
-        .replace(/<div class="boot-word">[\s\S]*?<\/div>/, `<div class="boot-word">${escaped}</div>`);
+        .replace(/(<meta name="apple-mobile-web-app-title" content=")[^"]*(")/, `$1${escaped}$2`);
     },
     configureServer(server) {
       if (!appName) return;
