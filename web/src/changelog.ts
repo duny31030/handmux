@@ -19,6 +19,22 @@ export interface ChangelogEntry {
 // `entryId`/`LATEST_RELEASE` use `version` when present, else `date`, as the stable unread-dot id.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.33.2',
+    date: '2026-10-03',
+    highlight: {
+      zh: '修复 v0.33.1 发布包的构建兼容问题',
+      en: 'Fixes build compatibility in the v0.33.1 package',
+    },
+    items: {
+      zh: [
+        '修复 v0.33.1 发布包与 workspace Docker 构建上下文的兼容问题。',
+      ],
+      en: [
+        'Fixed v0.33.1 package compatibility with the workspace Docker build context.',
+      ],
+    },
+  },
+  {
     version: '0.33.1',
     date: '2026-10-02',
     highlight: {
