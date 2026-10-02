@@ -82,7 +82,7 @@ export function runTmux(args: string[]): Promise<string> {
 
 // Keep large payloads out of tmux's command argument buffer. `load-buffer -` reads the payload from
 // stdin, so its size is limited by the request and tmux buffer rather than the length of one command.
-function runTmuxWithInput(args: string[], input: string): Promise<string> {
+function runTmuxWithInput(args: string[], input: string | Uint8Array): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     assertRequestAuthority();
     const child = execFile('tmux', args, { maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
@@ -318,17 +318,19 @@ export async function sendText(paneId: string, text: string): Promise<void> {
   }
 }
 
-// tmux's command parser has a much smaller practical limit than the HTTP request body. Keep each
-// send-keys invocation comfortably below that limit while preserving byte order within this call.
-const MAX_SEND_KEYS_BYTES = 1024;
-
 export async function sendHexInput(paneId: string, hex: string): Promise<void> {
-  const bytes = hex.match(/../g) || [];
-  for (let offset = 0; offset < bytes.length; offset += MAX_SEND_KEYS_BYTES) {
-    await runTmux([
-      'send-keys', '-t', paneId, '-H',
-      ...bytes.slice(offset, offset + MAX_SEND_KEYS_BYTES),
-    ]);
+  if (!hex) return;
+  const buffer = nextInputBufferName();
+  try {
+    // Raw terminal input can contain control sequences as well as UTF-8. Put the bytes in a tmux
+    // buffer and paste them without `-p`, so tmux does not add bracketed-paste markers or force the
+    // payload through the command argument parser. This is the same transport as sendText, while
+    // preserving the direct terminal's raw-byte semantics.
+    await runTmuxWithInput(['load-buffer', '-b', buffer, '-'], Buffer.from(hex, 'hex'));
+    await runTmux(['paste-buffer', '-d', '-b', buffer, '-t', paneId]);
+  } catch (error) {
+    try { await runTmux(['delete-buffer', '-b', buffer]); } catch { /* best effort */ }
+    throw error;
   }
 }
 
