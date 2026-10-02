@@ -236,8 +236,8 @@ export default {
   'common.done': '完成',
   'common.retry': '重试',
   'common.continue': '继续',
-  'conversationCopy.all': '复制全部',
-  'conversationCopy.addToChat': '添加到对话框',
+  'conversationCopy.selectAll': '全选',
+  'conversationCopy.addToChat': '添加到对话',
 
   'app.browser': '网页预览器',
   'browser.openTabs': '打开的网页预览器标签页',

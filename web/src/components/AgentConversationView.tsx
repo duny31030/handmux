@@ -103,7 +103,8 @@ export function AgentConversationErrorView({
       {copy.ui && (
         <OverlayPortal className="conversation-copy-overlay">
           <ConversationCopyControls ui={copy.ui} dragging={copy.dragging} calloutRef={copy.calloutRef}
-            onCopy={() => void copy.copy()} onCopyAll={() => void copy.copyAll()} />
+            onCopy={() => void copy.copy()} onSelectAll={copy.selectAll}
+            allSelected={copy.allSelected} />
         </OverlayPortal>
       )}
     </div>
@@ -672,7 +673,8 @@ export default function AgentConversationView({
       {copy.ui && (
         <OverlayPortal className="conversation-copy-overlay">
           <ConversationCopyControls ui={copy.ui} dragging={copy.dragging} calloutRef={copy.calloutRef}
-            onCopy={() => void copy.copy()} onCopyAll={() => void copy.copyAll()}
+            onCopy={() => void copy.copy()} onSelectAll={copy.selectAll}
+            allSelected={copy.allSelected}
             {...(onAddToComposer ? { onAddToComposer: copy.addToComposer } : {})} />
         </OverlayPortal>
       )}

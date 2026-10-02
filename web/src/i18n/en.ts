@@ -239,7 +239,7 @@ export default {
   'common.done': 'Done',
   'common.retry': 'Try Again',
   'common.continue': 'Continue',
-  'conversationCopy.all': 'Copy all',
+  'conversationCopy.selectAll': 'Select all',
   'conversationCopy.addToChat': 'Add to chat',
 
   'app.browser': 'Web preview',

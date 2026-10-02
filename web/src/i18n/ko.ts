@@ -37,7 +37,7 @@ export default {
   'common.delete': '삭제',
   'common.copy': '복사',
   'common.copied': '복사됨',
-  'conversationCopy.all': '전체 복사',
+  'conversationCopy.selectAll': '전체 선택',
   'conversationCopy.addToChat': '대화에 추가',
   'common.rename': '이름 변경',
   'common.create': '새로 만들기',

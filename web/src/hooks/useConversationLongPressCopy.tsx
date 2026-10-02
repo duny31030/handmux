@@ -27,13 +27,6 @@ export interface ConversationCopyBlock {
   id: string;
 }
 
-function wholeCopyText(root: HTMLElement): string | null {
-  const map = conversationTextMap(root);
-  if (!map.text) return null;
-  const range = domRangeForOffsets(root, { start: 0, end: map.text.length }, map);
-  return range ? copyTextForRange(range, true) : map.text;
-}
-
 interface HandleUI {
   x: number;
   y: number;
@@ -153,6 +146,7 @@ export function useConversationLongPressCopy({
 }) {
   const [copyUI, setCopyUI] = useState<CopyUI | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [allSelected, setAllSelected] = useState(false);
   const modelRef = useRef<SelectionModel | null>(null);
   const activeRef = useRef(false);
   const pressRef = useRef<LongPressState>({
@@ -204,6 +198,7 @@ export function useConversationLongPressCopy({
     suppressClickRef.current = false;
     pendingOutsideRef.current = null;
     setDragging(false);
+    setAllSelected(false);
     modelRef.current = null;
     activeRef.current = false;
     viewRef.current?.classList.remove('chat-copy-active');
@@ -307,6 +302,7 @@ export function useConversationLongPressCopy({
       selectedText: map.text.slice(start, end),
       preserveStructure,
     };
+    setAllSelected(start === 0 && end === map.text.length);
     activeRef.current = true;
     viewRef.current?.classList.add('chat-copy-active');
     refresh(false);
@@ -730,18 +726,16 @@ export function useConversationLongPressCopy({
     dismiss();
   };
 
-  const copyAll = async (): Promise<void> => {
+  const selectAll = (): void => {
     const view = viewRef.current;
     const model = modelRef.current;
     if (!view || !model) return;
     const root = copyRootById(view, model.rootId);
-    const text = root ? wholeCopyText(root) : null;
-    if (!text) return;
-    try {
-      await navigator.clipboard.writeText(text);
-      navigator.vibrate?.(8);
-    } catch { /* clipboard unavailable or denied */ }
-    dismiss();
+    if (!root) return;
+    const map = conversationTextMap(root);
+    if (!map.text) return;
+    select(root, model.rootId, { start: 0, end: map.text.length }, true);
+    navigator.vibrate?.(8);
   };
 
   const addToComposer = (): void => {
@@ -773,8 +767,9 @@ export function useConversationLongPressCopy({
     onPointerLeave: (event: ReactPointerEvent<HTMLDivElement>) => endPointer(event, false),
     onClickCapture: handleClickCapture,
     copy,
-    copyAll,
+    selectAll,
     addToComposer,
+    allSelected,
   };
 }
 
@@ -783,15 +778,17 @@ export function ConversationCopyControls({
   dragging,
   calloutRef,
   onCopy,
-  onCopyAll,
+  onSelectAll,
   onAddToComposer,
+  allSelected,
 }: {
   ui: CopyUI;
   dragging: boolean;
   calloutRef: RefObject<HTMLDivElement>;
   onCopy: () => void;
-  onCopyAll: () => void;
+  onSelectAll: () => void;
   onAddToComposer?: () => void;
+  allSelected: boolean;
 }) {
   const handleStyle = (handle: HandleUI): CSSProperties => ({
     left: handle.x,
@@ -815,8 +812,10 @@ export function ConversationCopyControls({
           event.preventDefault();
           event.stopPropagation();
         }}>
+        {!allSelected && <button type="button" onClick={onSelectAll}>
+          {t('conversationCopy.selectAll')}
+        </button>}
         <button type="button" onClick={onCopy}>{t('common.copy')}</button>
-        <button type="button" onClick={onCopyAll}>{t('conversationCopy.all')}</button>
         {onAddToComposer && <button type="button" onClick={onAddToComposer}>
           {t('conversationCopy.addToChat')}
         </button>}

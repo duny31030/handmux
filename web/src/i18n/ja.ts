@@ -37,7 +37,7 @@ export default {
   'common.delete': '削除',
   'common.copy': 'コピー',
   'common.copied': 'コピーしました',
-  'conversationCopy.all': 'すべてコピー',
+  'conversationCopy.selectAll': 'すべて選択',
   'conversationCopy.addToChat': 'チャットに追加',
   'common.rename': '名前を変更',
   'common.create': '新規作成',
