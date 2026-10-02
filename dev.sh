@@ -312,6 +312,7 @@ print_status() {
   rm -f "$OWNER_START_FILE"
   rm -f "$RUNTIME_FILE"
   rm -f "$SERVER_START_FILE" "$VITE_START_FILE"
+  rm -rf "$LOCK_DIR"
   echo "development stopped"
   return 1
 }
@@ -371,8 +372,9 @@ cleanup() {
   done
   rm -f "$PID_FILE"
   rm -f "$OWNER_START_FILE"
-  rm -f "$RUNTIME_FILE"
-  rm -f "$SERVER_START_FILE" "$VITE_START_FILE"
+  # Keep child PID/start-time records until status/start confirms that an
+  # interrupted owner left no process behind, so the next invocation can reap
+  # orphaned API/Vite children instead of losing their identities.
   rmdir "$LOCK_DIR" 2>/dev/null || true
 }
 
@@ -384,6 +386,7 @@ stop_dev() {
     rm -f "$OWNER_START_FILE"
     rm -f "$RUNTIME_FILE"
     rm -f "$SERVER_START_FILE" "$VITE_START_FILE"
+    rm -rf "$LOCK_DIR"
     echo "development already stopped"
     return 0
   fi
@@ -402,6 +405,7 @@ stop_dev() {
   rm -f "$OWNER_START_FILE"
   rm -f "$RUNTIME_FILE"
   rm -f "$SERVER_START_FILE" "$VITE_START_FILE"
+  rm -rf "$LOCK_DIR"
   echo "development stopped"
 }
 
