@@ -103,8 +103,7 @@ export function AgentConversationErrorView({
       {copy.ui && (
         <OverlayPortal className="conversation-copy-overlay">
           <ConversationCopyControls ui={copy.ui} dragging={copy.dragging} calloutRef={copy.calloutRef}
-            onCopy={() => void copy.copy()} onLine={copy.expandLine}
-            onParagraph={copy.expandParagraph} />
+            onCopy={() => void copy.copy()} onCopyAll={() => void copy.copyAll()} />
         </OverlayPortal>
       )}
     </div>
@@ -121,6 +120,7 @@ export default function AgentConversationView({
   onDocLinkTap,
   onOpenTool,
   onAuthFail,
+  onAddToComposer,
   conversationFontSize = 15,
 }: {
   conversation: AgentConversationController;
@@ -132,6 +132,7 @@ export default function AgentConversationView({
   onDocLinkTap?: (link: ConversationOutputLink, clientX: number, clientY: number) => void;
   onOpenTool?: () => void;
   onAuthFail?: (() => void) | undefined;
+  onAddToComposer?: (text: string) => void;
   conversationFontSize?: number;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -188,6 +189,7 @@ export default function AgentConversationView({
     resetKey: sessionId,
     restoreKey: conversation.items,
     onActivate: enterReadingMode,
+    ...(onAddToComposer ? { onAddToComposer } : {}),
     onPointerDown: (event) => {
       pointerGestureActiveRef.current = true;
       pointerStartYRef.current = event.clientY;
@@ -670,8 +672,8 @@ export default function AgentConversationView({
       {copy.ui && (
         <OverlayPortal className="conversation-copy-overlay">
           <ConversationCopyControls ui={copy.ui} dragging={copy.dragging} calloutRef={copy.calloutRef}
-            onCopy={() => void copy.copy()} onLine={copy.expandLine}
-            onParagraph={copy.expandParagraph} />
+            onCopy={() => void copy.copy()} onCopyAll={() => void copy.copyAll()}
+            {...(onAddToComposer ? { onAddToComposer: copy.addToComposer } : {})} />
         </OverlayPortal>
       )}
       {(!atBottom || !atLatestWindow) && (

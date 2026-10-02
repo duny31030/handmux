@@ -68,6 +68,7 @@ import type { WorkspaceLens } from './components/LensSwitch.jsx';
 import AgentConversationView from './components/AgentConversationView.jsx';
 import LensBoot from './components/LensBoot.jsx';
 import AgentConversationComposer from './components/AgentConversationComposer.jsx';
+import type { AgentConversationComposerHandle } from './components/AgentConversationComposer.jsx';
 import AgentInteractionLayer from './components/AgentInteractionLayer.jsx';
 import AgentConversationActivationGuide from './components/AgentConversationActivationGuide.jsx';
 import CodexManagedGuide from './components/CodexManagedGuide.jsx';
@@ -540,6 +541,7 @@ export default function App() {
   };
   const termRef = useRef<TerminalHandle | null>(null);
   const dockRef = useRef<BottomDockHandle | null>(null); // imperative handle into BottomDock — idea panel fills its input box
+  const agentComposerRef = useRef<AgentConversationComposerHandle | null>(null);
   const [terminalFocused, setTerminalFocused] = useState(false);
   const terminalFocusedRef = useRef(false);
   terminalFocusedRef.current = terminalFocused;
@@ -3577,7 +3579,8 @@ export default function App() {
                   onCompletedEntryConsumed={consumeCompletedChatEntry}
                   followLatestRequest={chatFollowLatest.paneId === current.paneId
                     ? chatFollowLatest.request : 0}
-                  conversationFontSize={conversationFontSize} />
+                  conversationFontSize={conversationFontSize}
+                  onAddToComposer={(text) => agentComposerRef.current?.fill(text)} />
               ) : activationRun
                 && currentAgentDescriptor?.capabilities.conversationActivation === true ? (
                 activationRun.agentId === 'codex' ? (
@@ -3637,6 +3640,7 @@ export default function App() {
                 localStorage.setItem(`tw_lens_${current.paneId}`, 'terminal');
               }} />
               <AgentConversationComposer
+                ref={agentComposerRef}
                 agentId={composerIdentity.agentId}
                 sessionId={composerIdentity.sessionId}
                 desktop={desktopInput}

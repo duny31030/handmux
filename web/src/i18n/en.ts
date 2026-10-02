@@ -239,8 +239,8 @@ export default {
   'common.done': 'Done',
   'common.retry': 'Try Again',
   'common.continue': 'Continue',
-  'conversationCopy.line': 'Line',
-  'conversationCopy.paragraph': 'Paragraph',
+  'conversationCopy.all': 'Copy all',
+  'conversationCopy.addToChat': 'Add to chat',
 
   'app.browser': 'Web preview',
   'browser.openTabs': 'Open web preview tabs',

@@ -11,10 +11,7 @@ import {
   copyTextForRange,
   domRangeForOffsets,
   normalizedOffsetRange,
-  paragraphRange,
   textOffsetAtPoint,
-  visualLineFlowRange,
-  visualLineRange,
   wordRangeAt,
   type TextOffsetRange,
 } from '../conversationSelection.js';
@@ -28,6 +25,13 @@ const EDGE_SCROLL_PX = 36;
 export interface ConversationCopyBlock {
   el: HTMLElement;
   id: string;
+}
+
+function wholeCopyText(root: HTMLElement): string | null {
+  const map = conversationTextMap(root);
+  if (!map.text) return null;
+  const range = domRangeForOffsets(root, { start: 0, end: map.text.length }, map);
+  return range ? copyTextForRange(range, true) : map.text;
 }
 
 interface HandleUI {
@@ -133,6 +137,7 @@ export function useConversationLongPressCopy({
   resetKey,
   restoreKey,
   onActivate,
+  onAddToComposer,
   onPointerDown,
   onPointerMove,
 }: {
@@ -142,6 +147,7 @@ export function useConversationLongPressCopy({
   resetKey: string | null;
   restoreKey?: unknown;
   onActivate?: () => void;
+  onAddToComposer?: (text: string) => void;
   onPointerDown?: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onPointerMove?: (event: ReactPointerEvent<HTMLDivElement>) => void;
 }) {
@@ -710,31 +716,6 @@ export function useConversationLongPressCopy({
     if (activeRef.current) refresh(true);
   };
 
-  const expandLine = (): void => {
-    const view = viewRef.current;
-    const model = modelRef.current;
-    if (!view || !model) return;
-    const root = copyRootById(view, model.rootId);
-    if (!root) return;
-    const map = conversationTextMap(root);
-    const next = visualLineRange(
-      model,
-      map.text.length,
-      (offset) => characterRect(root, offset, map),
-      (offset) => visualLineFlowRange(root, offset, map),
-    );
-    select(root, model.rootId, next, true);
-  };
-
-  const expandParagraph = (): void => {
-    const view = viewRef.current;
-    const model = modelRef.current;
-    if (!view || !model) return;
-    const root = copyRootById(view, model.rootId);
-    if (!root) return;
-    select(root, model.rootId, paragraphRange(root, model), true);
-  };
-
   const copy = async (): Promise<void> => {
     const view = viewRef.current;
     const model = modelRef.current;
@@ -746,6 +727,33 @@ export function useConversationLongPressCopy({
       await navigator.clipboard.writeText(copyTextForRange(range, model.preserveStructure));
       navigator.vibrate?.(8);
     } catch { /* clipboard unavailable or denied */ }
+    dismiss();
+  };
+
+  const copyAll = async (): Promise<void> => {
+    const view = viewRef.current;
+    const model = modelRef.current;
+    if (!view || !model) return;
+    const root = copyRootById(view, model.rootId);
+    const text = root ? wholeCopyText(root) : null;
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      navigator.vibrate?.(8);
+    } catch { /* clipboard unavailable or denied */ }
+    dismiss();
+  };
+
+  const addToComposer = (): void => {
+    const view = viewRef.current;
+    const model = modelRef.current;
+    if (!view || !model || !onAddToComposer) return;
+    const root = copyRootById(view, model.rootId);
+    const range = root ? domRangeForOffsets(root, model) : null;
+    if (!range) return;
+    const text = copyTextForRange(range, model.preserveStructure);
+    if (!text) return;
+    onAddToComposer(text);
     dismiss();
   };
 
@@ -765,8 +773,8 @@ export function useConversationLongPressCopy({
     onPointerLeave: (event: ReactPointerEvent<HTMLDivElement>) => endPointer(event, false),
     onClickCapture: handleClickCapture,
     copy,
-    expandLine,
-    expandParagraph,
+    copyAll,
+    addToComposer,
   };
 }
 
@@ -775,15 +783,15 @@ export function ConversationCopyControls({
   dragging,
   calloutRef,
   onCopy,
-  onLine,
-  onParagraph,
+  onCopyAll,
+  onAddToComposer,
 }: {
   ui: CopyUI;
   dragging: boolean;
   calloutRef: RefObject<HTMLDivElement>;
   onCopy: () => void;
-  onLine: () => void;
-  onParagraph: () => void;
+  onCopyAll: () => void;
+  onAddToComposer?: () => void;
 }) {
   const handleStyle = (handle: HandleUI): CSSProperties => ({
     left: handle.x,
@@ -808,8 +816,10 @@ export function ConversationCopyControls({
           event.stopPropagation();
         }}>
         <button type="button" onClick={onCopy}>{t('common.copy')}</button>
-        <button type="button" onClick={onLine}>{t('conversationCopy.line')}</button>
-        <button type="button" onClick={onParagraph}>{t('conversationCopy.paragraph')}</button>
+        <button type="button" onClick={onCopyAll}>{t('conversationCopy.all')}</button>
+        {onAddToComposer && <button type="button" onClick={onAddToComposer}>
+          {t('conversationCopy.addToChat')}
+        </button>}
       </div>
     </>
   );

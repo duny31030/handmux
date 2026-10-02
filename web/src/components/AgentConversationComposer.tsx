@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowUpIcon, GearIcon, PlusIcon, StopIcon } from './icons.jsx';
 import { t } from '../i18n';
 import {
@@ -7,7 +7,7 @@ import {
   isConversationDeliveryUnknown,
   type AgentConversationController,
 } from '../hooks/useAgentConversation.js';
-import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
+import type { ForwardedRef, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import type { ServerShortcuts } from '../shortcutMerge.js';
 import type { ConversationActivity } from '../agentConversationControlsApi.js';
 import { DEFAULT_SERVER_SHORTCUTS, mergeShortcuts, shortcutIdentity } from '../shortcutMerge.js';
@@ -38,27 +38,11 @@ function autoGrow(element: HTMLTextAreaElement | null): void {
   element.style.height = `${Math.min(element.scrollHeight, 144)}px`;
 }
 
-export default function AgentConversationComposer({
-  agentId,
-  sessionId,
-  busy,
-  activity,
-  desktop = false,
-  conversation,
-  onSendStart,
-  cwd = null,
-  shortcuts = null,
-  micAvailable = false,
-  voiceMode = 'streaming',
-  onAuthFail,
-  sessionControl,
-  headerContent,
-  queueContent,
-  actionContent,
-  onSlashCommand,
-  chatTone = 'dusk',
-  keyboardInset = 0,
-}: {
+export interface AgentConversationComposerHandle {
+  fill(text: string): void;
+}
+
+export interface AgentConversationComposerProps {
   agentId: string;
   sessionId: string;
   busy: boolean;
@@ -78,7 +62,29 @@ export default function AgentConversationComposer({
   onSlashCommand?: (text: string) => Promise<boolean>;
   chatTone?: string;
   keyboardInset?: number;
-}) {
+}
+
+function AgentConversationComposer({
+  agentId,
+  sessionId,
+  busy,
+  activity,
+  desktop = false,
+  conversation,
+  onSendStart,
+  cwd = null,
+  shortcuts = null,
+  micAvailable = false,
+  voiceMode = 'streaming',
+  onAuthFail,
+  sessionControl,
+  headerContent,
+  queueContent,
+  actionContent,
+  onSlashCommand,
+  chatTone = 'dusk',
+  keyboardInset = 0,
+}: AgentConversationComposerProps, forwardedRef: ForwardedRef<AgentConversationComposerHandle>) {
   const key = `${agentId}\0${sessionId}`;
   const saveDraft = (next: string): void => saveConversationDraft(agentId, sessionId, next);
   const [value, setValue] = useState(() => getConversationDraft(agentId, sessionId));
@@ -167,13 +173,8 @@ export default function AgentConversationComposer({
     (shortcuts || DEFAULT_SERVER_SHORTCUTS).chat, favs, 'chat',
   ), layout).filter((item) => item.kind !== 'key');
 
-  const insertPaths = (paths: string[]): void => {
-    if (!paths.length) return;
-    const first = paths[0]!;
-    const dir = first.slice(0, first.lastIndexOf('/') + 1);
-    const text = paths.length === 1 ? first : paths.every((path) => path.startsWith(dir))
-      ? `${dir}{${paths.map((path) => path.slice(dir.length)).join(',')}}`
-      : paths.join(' ');
+  const fill = useCallback((text: string): void => {
+    if (!text) return;
     if (draftLockedRef.current) {
       deferredDraftRef.current = appendConversationDraft(deferredDraftRef.current, text);
       return;
@@ -184,6 +185,17 @@ export default function AgentConversationComposer({
       return next;
     });
     requestAnimationFrame(() => ref.current?.focus());
+  }, [agentId, sessionId]);
+  useImperativeHandle(forwardedRef, () => ({ fill }), [fill]);
+
+  const insertPaths = (paths: string[]): void => {
+    if (!paths.length) return;
+    const first = paths[0]!;
+    const dir = first.slice(0, first.lastIndexOf('/') + 1);
+    const text = paths.length === 1 ? first : paths.every((path) => path.startsWith(dir))
+      ? `${dir}{${paths.map((path) => path.slice(dir.length)).join(',')}}`
+      : paths.join(' ');
+    fill(text);
   };
   const { uploadFiles } = useUpload({
     cwd, onPaths: insertPaths, ...(onAuthFail ? { onAuthFail } : {}),
@@ -407,3 +419,7 @@ export default function AgentConversationComposer({
     </div>
   );
 }
+
+export default forwardRef<AgentConversationComposerHandle, AgentConversationComposerProps>(
+  AgentConversationComposer,
+);
