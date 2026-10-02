@@ -178,6 +178,9 @@ interface HostWindow extends WorkspaceWindow {
   width?: number;
   activePaneId?: string;
   paneList?: HostPane[];
+  manageSessionId?: string;
+  manageSessionName?: string;
+  manageSessionWindows?: HostWindow[];
 }
 
 interface HostPane extends WorkspacePane {
@@ -197,6 +200,8 @@ interface RenameTarget {
   kind: 'session' | 'window';
   id: string;
   name: string;
+  sessionId?: string;
+  sessionName?: string;
 }
 
 interface CompletedChatEntryRequest {
@@ -261,6 +266,17 @@ const hostWindow = (
 ): HostWindow => ({
   ...window,
   name: window.name || window.id,
+});
+
+const managedWindow = (
+  window: HostWindow,
+  session: HostSession,
+  windows: readonly HostWindow[],
+): HostWindow => ({
+  ...window,
+  manageSessionId: session.id,
+  manageSessionName: session.name,
+  manageSessionWindows: [...windows],
 });
 
 const clampCols = (cols: number): number => Math.max(20, Math.min(500, cols));
@@ -1197,7 +1213,6 @@ export default function App() {
   const submitRename = useCallback(async (newName: string): Promise<void> => {
     const target = renameTarget;
     if (!target) return;
-    const sessionId = current?.session?.id;
     if (target.kind === 'session') {
       try {
         await renameSession(target.id, newName);
@@ -1219,11 +1234,16 @@ export default function App() {
         throw new Error(t('app.renameFailed'));
       }
       // Ideas are keyed by window NAME (id falls back when unnamed) — carry them to the new name.
-      if (!current?.session?.name || !sessionId) return;
-      renameWindowIdeas(current.session.name, target.name || target.id, newName);
+      const sessionId = target.sessionId ?? current?.session?.id;
+      const sessionName = target.sessionName ?? current?.session?.name;
+      if (!sessionName || !sessionId) return;
+      renameWindowIdeas(sessionName, target.name || target.id, newName);
       const windows = await getWindows(sessionId);
-      setCurrent((c) => (c
-        ? { ...c, windows, window: windows.find((w) => w.id === c.window.id) || c.window } : c));
+      if (current?.session?.id === sessionId) {
+        setCurrent((c) => (c && c.session.id === sessionId
+          ? { ...c, windows, window: windows.find((w) => w.id === c.window.id) || c.window } : c));
+      }
+      setDrawerWindowOrderVersion((version) => version + 1);
     }
     setRenameTarget(null);
   }, [renameTarget, current, onAuthFail]);
@@ -1235,9 +1255,13 @@ export default function App() {
   const deleteManagedWindow = useCallback(async () => {
     const w = manageWindow;
     const session = current?.session;
-    if (!w || !session) return;
-    const sessionId = session.id;
-    const lastWindow = current.windows.length <= 1;
+    const sessionId = w?.manageSessionId ?? session?.id;
+    const sessionName = w?.manageSessionName ?? session?.name;
+    const targetWindows = w?.manageSessionWindows
+      ?? (session && session.id === sessionId ? current?.windows : undefined)
+      ?? [];
+    if (!w || !sessionId || !sessionName) return;
+    const lastWindow = targetWindows.length <= 1;
     try {
       await deleteWindow(w.id);
     } catch (e) {
@@ -1249,13 +1273,13 @@ export default function App() {
     setManageWindow(null);
     if (lastWindow) {
       // Session is gone now — unpin it from this device and clear the view (same as unbind).
-      setBound(removeBoundSession(session.name));
+      setBound(removeBoundSession(sessionName));
       reportBound();
-      setCurrent(null);
+      if (session?.id === sessionId) setCurrent(null);
       return;
     }
     const windows = await getWindows(sessionId);
-    if (w.id === current.window.id && windows.length) {
+    if (session?.id === sessionId && w.id === current?.window.id && windows.length) {
       const next = windows.find((x) => x.active) || windows[0];
       if (!next) return;
       const panes = await getPanes(next.id);
@@ -1263,9 +1287,10 @@ export default function App() {
       const paneId = pickId(panes, getLastPane(next.id));
       setCurrent((c) => (c ? { ...c, windows, window: next, panes, paneId } : c));
       remember({ sessionId, windowId: next.id, paneId });
-    } else {
-      setCurrent((c) => (c ? { ...c, windows } : c));
+    } else if (session?.id === sessionId) {
+      setCurrent((c) => (c && c.session.id === sessionId ? { ...c, windows } : c));
     }
+    setDrawerWindowOrderVersion((version) => version + 1);
   }, [manageWindow, current, onAuthFail]);
 
   // Nudge the long-pressed window one slot left/right by swapping it with its neighbour. tmux window
@@ -1275,16 +1300,25 @@ export default function App() {
   // reorders, and the active highlight follows the window id.
   const moveManagedWindow = useCallback(async (dir: 'left' | 'right') => {
     const w = manageWindow;
-    const sessionId = current?.session?.id;
+    const sessionId = w?.manageSessionId ?? current?.session?.id;
+    const sessionName = w?.manageSessionName ?? current?.session?.name;
+    const targetWindows = w?.manageSessionWindows
+      ?? (current?.session?.id === sessionId ? current?.windows : undefined)
+      ?? [];
     if (!w || !sessionId) return;
-    const target = moveTarget(current.windows, w.id, dir);
+    const target = moveTarget(targetWindows, w.id, dir);
     if (!target) return; // at the edge — the button is disabled anyway
     try {
       await swapWindows(w.id, target.id);
       const windows = await getWindows(sessionId);
-      setCurrent((c) => (c
-        ? { ...c, windows, window: windows.find((x) => x.id === c.window.id) || c.window } : c));
-      setManageWindow(windows.find((x) => x.id === w.id) || null); // refresh in place (or close if gone)
+      if (current?.session?.id === sessionId) {
+        setCurrent((c) => (c && c.session.id === sessionId
+          ? { ...c, windows, window: windows.find((x) => x.id === c.window.id) || c.window } : c));
+      }
+      const fresh = windows.find((x) => x.id === w.id);
+      setManageWindow(fresh && sessionName
+        ? managedWindow(hostWindow(fresh), { id: sessionId, name: sessionName }, windows.map(hostWindow))
+        : null); // refresh in place (or close if gone)
       setDrawerWindowOrderVersion((version) => version + 1);
     } catch (e) {
       if (handledAuth(e)) { setManageWindow(null); return; }
@@ -1630,8 +1664,9 @@ export default function App() {
   const openWindowManagement = useCallback(async (sourceWindow: WorkspaceWindow) => {
     const win = hostWindow(sourceWindow);
     if (!win) return;
-    const sessionId = current?.session?.id;
-    if (!sessionId) { setManageWindow(win); return; }
+    const session = current?.session;
+    const sessionId = session?.id;
+    if (!sessionId || !session) { setManageWindow(win); return; }
     try {
       const windows = await getWindows(sessionId);
       const freshWindow = windows.find((w) => w.id === win.id);
@@ -1640,9 +1675,9 @@ export default function App() {
         if (!c || c.session.id !== sessionId) return c;
         return { ...c, windows, window: windows.find((w) => w.id === c.window.id) || c.window };
       });
-      setManageWindow(freshWindow);
+      setManageWindow(managedWindow(hostWindow(freshWindow), session, windows.map(hostWindow)));
     } catch (e) {
-      if (!handledAuth(e)) setManageWindow(win);
+      if (!handledAuth(e)) setManageWindow(managedWindow(win, session, current.windows));
     }
   }, [current?.session?.id, handledAuth]);
 
@@ -1706,7 +1741,7 @@ export default function App() {
     } catch (e) {
       if (handledAuth(e)) return;
       try {
-        const sessionId = current?.session?.id;
+        const sessionId = win.manageSessionId ?? current?.session?.id;
         if (!sessionId) return;
         const windows = await getWindows(sessionId);
         const fresh = windows.find((item) => item.id === win.id);
@@ -1717,17 +1752,23 @@ export default function App() {
 
   const restoreManagedWindowCols = useCallback(async () => {
     const win = manageWindow;
-    const sessionId = current?.session?.id;
+    const sessionId = win?.manageSessionId ?? current?.session?.id;
+    const sessionName = win?.manageSessionName ?? current?.session?.name;
     if (!win || win.panes !== 1 || !sessionId) return;
     try {
       await restoreWindowSize(win.id);
       const windows = await getWindows(sessionId);
       const fresh = windows.find((item) => item.id === win.id);
-      setCurrent((state) => {
-        if (!state || state.session.id !== sessionId) return state;
-        return { ...state, windows, window: windows.find((item) => item.id === state.window.id) || state.window };
-      });
-      if (fresh) setManageWindow(fresh);
+      if (current?.session?.id === sessionId) {
+        setCurrent((state) => {
+          if (!state || state.session.id !== sessionId) return state;
+          return { ...state, windows, window: windows.find((item) => item.id === state.window.id) || state.window };
+        });
+      }
+      if (fresh && sessionName) {
+        setManageWindow(managedWindow(hostWindow(fresh), { id: sessionId, name: sessionName }, windows.map(hostWindow)));
+      }
+      setDrawerWindowOrderVersion((version) => version + 1);
     } catch (e) { handledAuth(e); }
   }, [manageWindow, current?.session?.id, handledAuth]);
 
@@ -1836,7 +1877,8 @@ export default function App() {
   // window (a background window has no map to long-press). We split its active pane, then switch the
   // view to that window and land on the new pane, so you actually see the split you just made.
   const splitWindowAction = useCallback(async (win: HostWindow, dir: string) => {
-    const sessionId = current?.session?.id;
+    const sessionId = win.manageSessionId ?? current?.session?.id;
+    const sessionName = win.manageSessionName ?? current?.session?.name;
     if (!win || !sessionId) return;
     setManageWindow(null);
     try {
@@ -1846,18 +1888,23 @@ export default function App() {
       const { panes, selectPaneId } = await runSplitPane({
         paneId: base.id, dir, windowId: win.id, api: { splitPane: apiSplitPane }, getPanes,
       });
-      setControlsRevision((revision) => revision + 1);
-      setCurrent((c) => {
-        if (!c) return c;
-        const windows = c.windows.map((w) => (w.id === win.id ? { ...w, panes: panes.length } : w));
-        return { ...c, windows, window: win, panes, paneId: selectPaneId };
-      });
-      remember({ sessionId, windowId: win.id, paneId: selectPaneId });
+      if (current?.session?.id === sessionId) {
+        setControlsRevision((revision) => revision + 1);
+        setCurrent((c) => {
+          if (!c || c.session.id !== sessionId) return c;
+          const windows = c.windows.map((w) => (w.id === win.id ? { ...w, panes: panes.length } : w));
+          return { ...c, windows, window: { ...win, panes: panes.length }, panes, paneId: selectPaneId };
+        });
+        remember({ sessionId, windowId: win.id, paneId: selectPaneId });
+      } else if (sessionName) {
+        // Splitting a background window is the point at which the user explicitly asks to see it.
+        await selectSession(sessionName, win.id);
+      }
     } catch (e) {
       if (handledAuth(e)) return;
       window.alert(t('pane.splitFailed'));
     }
-  }, [current, onAuthFail]);
+  }, [current, onAuthFail, selectSession]);
 
   // "管理分屏" on a multi-pane window's manage sheet → open the split map AND its pane-manage sheet on the
   // current pane, so you land straight in "manage the split" (tap another tile to re-target). If that
@@ -1876,7 +1923,13 @@ export default function App() {
     // the user explicitly chooses this action; opening the Window action menu must leave it open.
     setDrawerOpen(false);
     let paneId = current?.paneId;
-    if (win.id !== current?.window?.id) {
+    const targetSessionId = win.manageSessionId ?? current?.session?.id;
+    const targetSessionName = win.manageSessionName ?? current?.session?.name;
+    if (targetSessionId !== current?.session?.id) {
+      setManageWindow(null);
+      if (!targetSessionName || !await selectSession(targetSessionName, win.id)) return;
+      paneId = currentRef.current?.paneId;
+    } else if (win.id !== current?.window?.id) {
       setManageWindow(null);
       paneId = (await selectWindow(win)) ?? undefined;
     } else {
@@ -1890,7 +1943,7 @@ export default function App() {
     if (!paneId) return; // switch failed (no panes / auth) — don't strand an openMapFor for a window that never mounts
     setOpenMapFor(win.id);
     await openPaneManagement(paneId, win.id);
-  }, [current, selectWindow, openPaneManagement]);
+  }, [current, selectSession, selectWindow, openPaneManagement]);
 
   // Reload the recent (send) history whenever the open session OR window changes — history is
   // window-level, keyed by session NAME + window ID. Use the tmux window ID (@N), which is stable for the
@@ -2993,6 +3046,8 @@ export default function App() {
     />
   );
 
+  const managedWindowList = manageWindow?.manageSessionWindows ?? current?.windows ?? [];
+
   return (
     // When the soft keyboard opens, slide the WHOLE app up by the keyboard height so it moves
     // as one unit: the keys + input land just above the keyboard and the terminal's bottom sits
@@ -3135,14 +3190,30 @@ export default function App() {
         onSwitchSession={() => setDrawerView('session')}
         onOpenSettings={openSettings}
         onNewWindow={openNewWindowForSession}
-        onManageWindow={(sessionName, window) => {
-          if (current?.session?.name === sessionName) {
-            setManageWindow(window as HostWindow);
-          } else {
-            void selectSession(sessionName, window.id).then((opened) => {
-              if (opened) setManageWindow(window as HostWindow);
-            });
+        onManageWindow={(sessionName, window, sessionId, sessionWindows) => {
+          const targetSession = sessionId ? { id: sessionId, name: sessionName } : null;
+          if (targetSession && sessionWindows?.length) {
+            const windows = sessionWindows.map(hostWindow);
+            const targetWindow = windows.find((item) => item.id === window.id) || hostWindow(window);
+            // Opening a Window menu is an inspection/action request. It must not navigate away from
+            // the current Session; actions that need the target view switch explicitly when chosen.
+            setManageWindow(managedWindow(targetWindow, targetSession, windows));
+            return;
           }
+          if (current?.session?.name === sessionName) {
+            void openWindowManagement(window);
+            return;
+          }
+          // Older/partial Drawer snapshots may lack the session id. Resolve the target in the
+          // background without changing the visible workspace.
+          void getSessions().then((sessions) => {
+            const session = sessions.find((candidate) => candidate.name === sessionName);
+            if (!session) return;
+            return getWindows(session.id).then((windows) => {
+              const targetWindow = windows.find((item) => item.id === window.id);
+              if (targetWindow) setManageWindow(managedWindow(hostWindow(targetWindow), session, windows.map(hostWindow)));
+            });
+          }).catch((error) => { handledAuth(error); });
         }}
         onRenameSession={renameSessionFromDrawer}
         onDeleteSession={deleteSessionFromDrawer}
@@ -3220,27 +3291,36 @@ export default function App() {
           // Reorder: shown only with >1 window (nothing to reorder otherwise, mirrors delete). Each
           // direction disables at its edge so positions stay put during repeated taps. onClick does
           // NOT close the sheet — moveManagedWindow keeps it open for the next nudge.
-          ...(current && current.windows.length > 1 ? [[
+          ...(managedWindowList.length > 1 ? [[
             {
               key: 'move-left', icon: <ArrowUpIcon />, label: t('app.moveLeft'),
-              disabled: !moveTarget(current.windows, manageWindow.id, 'left'),
+              disabled: !moveTarget(managedWindowList, manageWindow.id, 'left'),
               onClick: () => moveManagedWindow('left'),
             },
             {
               key: 'move-right', icon: <span className="drawer-order-icon-down"><ArrowUpIcon /></span>, label: t('app.moveRight'),
-              disabled: !moveTarget(current.windows, manageWindow.id, 'right'),
+              disabled: !moveTarget(managedWindowList, manageWindow.id, 'right'),
               onClick: () => moveManagedWindow('right'),
             },
           ]] : []),
           {
             key: 'rename', icon: <PencilIcon />, label: t('common.rename'),
-            onClick: () => { setRenameTarget({ kind: 'window', id: manageWindow.id, name: manageWindow.name || '' }); setManageWindow(null); },
+            onClick: () => {
+              const sessionId = manageWindow.manageSessionId ?? current?.session?.id;
+              const sessionName = manageWindow.manageSessionName ?? current?.session?.name;
+              setRenameTarget({
+                kind: 'window', id: manageWindow.id, name: manageWindow.name || '',
+                ...(sessionId ? { sessionId } : {}),
+                ...(sessionName ? { sessionName } : {}),
+              });
+              setManageWindow(null);
+            },
           },
           // Deleting the session's last window takes the whole session down — still allowed, but the
           // confirm step warns about it explicitly (a normal window just confirms the delete).
           {
             key: 'delete', icon: <XIcon />, label: t('app.deleteWindow'), danger: true, confirm: true,
-            confirmLabel: current && current.windows.length <= 1
+            confirmLabel: managedWindowList.length <= 1
               ? t('app.deleteLastWindowConfirm')
               : t('app.deleteConfirm'),
             onClick: deleteManagedWindow,

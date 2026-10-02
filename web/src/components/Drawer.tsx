@@ -136,7 +136,7 @@ interface DrawerProps {
   reloadRequired?: boolean;
   onReloadApp?: () => void;
   onNewWindow?: (sessionName: string) => void;
-  onManageWindow?: (sessionName: string, window: TmuxWindow) => void;
+  onManageWindow?: (sessionName: string, window: TmuxWindow, sessionId?: string, windows?: TmuxWindow[]) => void;
   onRenameSession?: (sessionName: string) => void;
   onDeleteSession?: (sessionName: string) => void;
   onMoveSession?: (sessionName: string, direction: 'up' | 'down') => void;
@@ -881,7 +881,10 @@ export default function Drawer({
                               />}
                               <span className="session-window-pane-value">{paneValue || paneSeq(0)}</span><ChevronDownIcon />
                             </button>}
-                            <button type="button" className="session-window-menu" aria-label={`${window.name || window.id} ${t('common.more')}`} onClick={(event) => { event.stopPropagation(); onManageWindow(name, window); }}><MoreHorizontalIcon /></button>
+                            <button type="button" className="session-window-menu" aria-label={`${window.name || window.id} ${t('common.more')}`} onClick={(event) => {
+                              event.stopPropagation();
+                              onManageWindow(name, window, topologyCache.current.ids[name], sessionWindows[name] || []);
+                            }}><MoreHorizontalIcon /></button>
                           </span>
                         </div>
                       </div>
