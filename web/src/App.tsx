@@ -242,6 +242,7 @@ interface RecoveryContext {
 interface WorkspaceTarget {
   window?: string | null;
   pane?: string | null;
+  paneSnapshot?: HostPane[];
 }
 
 interface OpenSessionOptions {
@@ -898,7 +899,12 @@ export default function App() {
       || windows.find((w) => w.id === pickId(windows, getLastWindow(session.id)))
       || windows[0];
     if (!selectedWindow) return false;
-    const structuralPanes = selectedWindow.paneList?.map((pane) => ({ ...pane })) as HostPane[] | undefined;
+    const hintedPanes = target?.window === selectedWindow.id && target.paneSnapshot?.length
+      ? target.paneSnapshot.map((pane) => ({ ...pane }))
+      : [];
+    const structuralPanes = hintedPanes.length
+      ? hintedPanes
+      : selectedWindow.paneList?.map((pane) => ({ ...pane })) as HostPane[] | undefined;
     const structuralComplete = !!structuralPanes?.length
       && (!Number.isFinite(selectedWindow.panes) || structuralPanes.length >= selectedWindow.panes);
     let panes = structuralComplete ? structuralPanes! : [];
@@ -1447,13 +1453,13 @@ export default function App() {
 
   // Non-drawer entry points only have a bound session name, so they still resolve the live session
   // and use the full open path below.
-  const selectSession = useCallback(async (name: string, windowId?: string): Promise<boolean> => {
+  const selectSession = useCallback(async (name: string, windowId?: string, paneSnapshot?: HostPane[]): Promise<boolean> => {
     const selection = ++sessionSelectionRef.current;
     setSessionLoading(true);
     try {
       const session = (await getSessions()).find((s) => s.name === name);
       if (!session) { window.alert(t('app.sessionGone', { name })); return false; }
-      const opened = await openSession(session, windowId ? { window: windowId } : null, {
+      const opened = await openSession(session, windowId ? { window: windowId, paneSnapshot } : null, {
         isCancelled: () => selection !== sessionSelectionRef.current,
       });
       if (opened) setDrawerOpen(false);
@@ -1894,6 +1900,8 @@ export default function App() {
         paneId, dir, windowId, api: { splitPane: apiSplitPane }, getPanes,
       });
       refreshPanes(windowId, panes);
+      setDrawerWindowOrderVersion((version) => version + 1);
+      setOpenMapFor(windowId);
       selectPane(selectPaneId); // you split to work in the new pane
     } catch (e) {
       if (handledAuth(e)) return;
@@ -1917,6 +1925,7 @@ export default function App() {
       });
       setManagePane(null);
       refreshPanes(windowId, panes);
+      setDrawerWindowOrderVersion((version) => version + 1);
       if (selectPaneId) selectPane(selectPaneId);
     } catch (e) {
       setManagePane(null);
@@ -1934,7 +1943,7 @@ export default function App() {
     if (!win || !sessionId) return;
     setManageWindow(null);
     try {
-      const src = await getPanes(win.id);
+      const src = await getPanes(win.id, { fresh: true });
       const base = src.find((p) => p.active) || src[0];
       if (!base) return;
       const { panes, selectPaneId } = await runSplitPane({
@@ -1944,14 +1953,21 @@ export default function App() {
         setControlsRevision((revision) => revision + 1);
         setCurrent((c) => {
           if (!c || c.session.id !== sessionId) return c;
-          const windows = c.windows.map((w) => (w.id === win.id ? { ...w, panes: panes.length } : w));
-          return { ...c, windows, window: { ...win, panes: panes.length }, panes, paneId: selectPaneId };
+          const paneList = panes.map((pane) => ({ ...pane }));
+          const windows = c.windows.map((w) => (w.id === win.id
+            ? { ...w, panes: panes.length, paneList }
+            : w));
+          const nextWindow = windows.find((w) => w.id === win.id) || { ...win, panes: panes.length, paneList };
+          return { ...c, windows, window: nextWindow, panes, paneId: selectPaneId };
         });
         remember({ sessionId, windowId: win.id, paneId: selectPaneId });
       } else if (sessionName) {
         // Splitting a background window is the point at which the user explicitly asks to see it.
-        await selectSession(sessionName, win.id);
+        const opened = await selectSession(sessionName, win.id, panes);
+        if (!opened) return;
       }
+      setDrawerWindowOrderVersion((version) => version + 1);
+      setOpenMapFor(win.id);
     } catch (e) {
       if (handledAuth(e)) return;
       window.alert(t('pane.splitFailed'));
