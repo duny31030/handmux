@@ -13,7 +13,7 @@ import {
   defaultAgentIntegrationContext,
   enableAgentIntegration,
 } from '../cli/agentIntegration.js';
-import { scanOrphans, takeoverOrphan, defaultProjectsDir } from '../orphans.js';
+import { scanOrphans, takeoverOrphan, defaultProjectsDir, defaultTmuxSocketPath } from '../orphans.js';
 import { readCache, isNewer, shouldRefresh, refreshLatestAsync } from '../cli/updateCheck.js';
 import { normalizeShortcuts } from '../shortcutConfig.js';
 import { projectLegacyInboxStates } from '../agent-runtime/legacyInboxProjection.js';
@@ -88,6 +88,14 @@ export function systemRoutes({
     hooksSrcDir: HOOKS_SRC,
     claudeStateFile: stateFile,
   });
+  // The development instance has its own tmux socket, while production keeps the conventional one.
+  // Include the latter in orphan membership checks so processes already managed by production are not
+  // presented as development "unclaimed" sessions. Production scans retain their original one-socket path.
+  const conventionalTmuxSocket = process.env.HANDMUX_DEV_MODE === '1' ? defaultTmuxSocketPath() : null;
+  const orphanScanOpts = {
+    projectsDir: defaultProjectsDir(home),
+    ...(conventionalTmuxSocket ? { tmuxSockets: [conventionalTmuxSocket] } : {}),
+  };
 
   // --- Capabilities probe ---------------------------------------------------------------------
   // Optional integrations are configured per-install (open-source installs ship without keys), so the
@@ -312,7 +320,7 @@ export function systemRoutes({
   // handmux can't steer them. Surfaced at the bottom of the Inbox with a "takeover" (spawn
   // `claude --resume` in tmux). Best-effort process scan (see orphans.js); never throws.
   r.get('/orphans', async (_req: Request, res: Response, next: NextFunction) => {
-    try { return res.json(await scanOrphans({ projectsDir: defaultProjectsDir(home) })); } catch (e) { return next(e); }
+    try { return res.json(await scanOrphans(orphanScanOpts)); } catch (e) { return next(e); }
   });
 
   // Take over an orphan: spawn `claude --resume <sessionId>` in tmux and (default) SIGTERM the original.
@@ -327,7 +335,7 @@ export function systemRoutes({
       ? { mode: 'window' as const, session: target.session } : { mode: 'new' as const };
     try {
       const out = await takeoverOrphan(
-        { commands, scanOpts: { projectsDir: defaultProjectsDir(home) } },
+        { commands, scanOpts: orphanScanOpts },
         { pid, sessionId, target: t, kill: kill !== false },
       );
       if (out.error) return res.status(out.status ?? 500).json({ error: out.error });

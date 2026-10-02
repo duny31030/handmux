@@ -79,6 +79,23 @@ const cfg = loadConfig();
 const token = loadToken();
 const uploadExts = loadUploadExts();
 const home = homedir();
+
+// A packaged development instance starts with an isolated tmux server. Keep the first page useful by
+// creating one project session when that server is empty; production retains the existing empty-state
+// behavior and never creates a session implicitly.
+async function ensureDevelopmentSession(): Promise<void> {
+  if (process.env.HANDMUX_DEV_MODE !== '1') return;
+  try {
+    if ((await commands.listSessions()).length > 0) return;
+    const cwd = process.env.HANDMUX_DEV_SOURCE || home;
+    await commands.newSession('dev', cwd);
+    console.log(`[handmux] development tmux session created: dev (${cwd})`);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.warn(`[handmux] development tmux session was not created: ${detail}`);
+  }
+}
+await ensureDevelopmentSession();
 const apiAccounts = new ApiAccountService({ file: apiAccountsPath(home) });
 const previewDomain = process.env.HANDMUX_PREVIEW_DOMAIN || null;
 const health = new RuntimeHealth({ browserRequired: Boolean(previewDomain) });

@@ -62,6 +62,8 @@ interface ScanOptions {
   agents?: readonly AgentDriver[];
   projectsDir?: string;
   sessionsDir?: string;
+  /** Additional tmux server sockets whose panes should count as managed too. */
+  tmuxSockets?: readonly string[];
   [key: string]: unknown;
 }
 type ScanFunction = (options?: ScanOptions) => Promise<OrphanCandidate[]>;
@@ -119,6 +121,16 @@ export { projectsDir as defaultProjectsDir } from './agents/claude.js';
 export function parseClaudeProcs(psOut: unknown): AgentProcess[] {
   const agent = getAgent('claude');
   return agent ? parseAgentProcs(psOut, [agent]) : [];
+}
+
+// tmux's conventional server socket is outside the per-instance TMUX_TMPDIR used by the dev profile.
+// Returning this path lets a development scan recognize panes owned by the production instance too,
+// instead of mislabeling every production Agent process as an orphan.
+export function defaultTmuxSocketPath(): string | null {
+  const uid = typeof process.getuid === 'function' ? process.getuid() : null;
+  if (uid == null) return null;
+  const root = process.platform === 'darwin' ? '/private/tmp' : '/tmp';
+  return path.join(root, `tmux-${uid}`, 'default');
 }
 
 // Take over an orphan: spawn the agent's `resume <sessionId>` in a fresh tmux session (target.mode 'new')
@@ -205,13 +217,20 @@ export async function takeoverOrphan(
 // specific agent's session dir (each driver declares which option key it reads — used by tests and the
 // server, which pin the dir off the resolved $HOME).
 export async function scanOrphans({
-  run = defaultRun, home = os.homedir(), busyMs = 8000, now = Date.now, agents = AGENTS, ...dirOverrides
+  run = defaultRun, home = os.homedir(), busyMs = 8000, now = Date.now, agents = AGENTS,
+  tmuxSockets = [], ...dirOverrides
 }: ScanOptions = {}): Promise<OrphanScanResult[]> {
-  const [psOut, tmuxOut] = await Promise.all([
+  const tmuxArgs = ['list-panes', '-a', '-F', tmuxFormat(['pane_tty', 'pane_pid'])];
+  const extraSockets = [...new Set(tmuxSockets.filter((socket): socket is string => (
+    typeof socket === 'string' && socket.length > 0
+  )))];
+  const [psOut, ...tmuxOutputs] = await Promise.all([
     run('ps', ['-Ao', 'pid=,ppid=,stat=,etime=,tty=,args=']),
-    run('tmux', ['list-panes', '-a', '-F', tmuxFormat(['pane_tty', 'pane_pid'])]),
+    run('tmux', tmuxArgs),
+    ...extraSockets.map((socket) => run('tmux', ['-S', socket, ...tmuxArgs])),
   ]);
-  const orphans = findOrphans(parseAgentProcs(psOut, agents), parsePaneMembership(tmuxOut));
+  const membership = parsePaneMembership(tmuxOutputs.join('\n'));
+  const orphans = findOrphans(parseAgentProcs(psOut, agents), membership);
   const results: OrphanScanResult[] = [];
   for (const o of orphans) {
     const agent = orphanAgent(o.agent);
