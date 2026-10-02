@@ -123,16 +123,6 @@ export function parseClaudeProcs(psOut: unknown): AgentProcess[] {
   return agent ? parseAgentProcs(psOut, [agent]) : [];
 }
 
-// tmux's conventional server socket is outside the per-instance TMUX_TMPDIR used by the dev profile.
-// Returning this path lets a development scan recognize panes owned by the production instance too,
-// instead of mislabeling every production Agent process as an orphan.
-export function defaultTmuxSocketPath(): string | null {
-  const uid = typeof process.getuid === 'function' ? process.getuid() : null;
-  if (uid == null) return null;
-  const root = process.platform === 'darwin' ? '/private/tmp' : '/tmp';
-  return path.join(root, `tmux-${uid}`, 'default');
-}
-
 // Take over an orphan: spawn the agent's `resume <sessionId>` in a fresh tmux session (target.mode 'new')
 // or a new window of an existing session ('window'), so handmux can steer the continued conversation.
 // Everything is re-verified server-side — the client's pid/sessionId are inputs to a fresh scan, never
@@ -229,7 +219,14 @@ export async function scanOrphans({
     run('tmux', tmuxArgs),
     ...extraSockets.map((socket) => run('tmux', ['-S', socket, ...tmuxArgs])),
   ]);
-  const membership = parsePaneMembership(tmuxOutputs.join('\n'));
+  // Each tmux invocation may end with a newline. Parse outputs separately so joining them cannot
+  // manufacture an empty row that the q-escaped parser would reject.
+  const membership = { ttys: new Set<string>(), pids: new Set<number>() };
+  for (const output of tmuxOutputs) {
+    const part = parsePaneMembership(output);
+    for (const tty of part.ttys) membership.ttys.add(tty);
+    for (const pid of part.pids) membership.pids.add(pid);
+  }
   const orphans = findOrphans(parseAgentProcs(psOut, agents), membership);
   const results: OrphanScanResult[] = [];
   for (const o of orphans) {

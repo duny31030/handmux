@@ -13,7 +13,7 @@ import {
   defaultAgentIntegrationContext,
   enableAgentIntegration,
 } from '../cli/agentIntegration.js';
-import { scanOrphans, takeoverOrphan, defaultProjectsDir, defaultTmuxSocketPath } from '../orphans.js';
+import { scanOrphans, takeoverOrphan, defaultProjectsDir } from '../orphans.js';
 import { readCache, isNewer, shouldRefresh, refreshLatestAsync } from '../cli/updateCheck.js';
 import { normalizeShortcuts } from '../shortcutConfig.js';
 import { projectLegacyInboxStates } from '../agent-runtime/legacyInboxProjection.js';
@@ -88,14 +88,7 @@ export function systemRoutes({
     hooksSrcDir: HOOKS_SRC,
     claudeStateFile: stateFile,
   });
-  // The development instance has its own tmux socket, while production keeps the conventional one.
-  // Include the latter in orphan membership checks so processes already managed by production are not
-  // presented as development "unclaimed" sessions. Production scans retain their original one-socket path.
-  const conventionalTmuxSocket = process.env.HANDMUX_DEV_MODE === '1' ? defaultTmuxSocketPath() : null;
-  const orphanScanOpts = {
-    projectsDir: defaultProjectsDir(home),
-    ...(conventionalTmuxSocket ? { tmuxSockets: [conventionalTmuxSocket] } : {}),
-  };
+  const orphanScanOpts = { projectsDir: defaultProjectsDir(home) };
 
   // --- Capabilities probe ---------------------------------------------------------------------
   // Optional integrations are configured per-install (open-source installs ship without keys), so the

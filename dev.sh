@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build and run the source checkout through the same packaged CLI as production.
-# The only difference is the isolated HOME/profile, tmux directory and port.
+# The only difference is the isolated HOME/profile and port. The development instance uses the
+# same tmux server as production, so existing sessions and windows are visible in both instances.
 set -euo pipefail
 
 SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -87,7 +88,6 @@ fi
 DEV_ROOT="${HANDMUX_DEV_ROOT:-$ROOT/.handmux-dev}"
 DEV_HOME="$DEV_ROOT/home"
 DEV_HANDMUX_HOME="$DEV_HOME/.handmux"
-DEV_TMUX_TMPDIR="$DEV_ROOT/tmux"
 DEV_CONFIG="$DEV_HANDMUX_HOME/config.json"
 DEV_TOKEN_FILE="$DEV_HANDMUX_HOME/token"
 DEV_PORT_DEFAULT=9998
@@ -115,7 +115,6 @@ reject_symlink() {
 reject_symlink "$DEV_ROOT" root
 reject_symlink "$DEV_HOME" home
 reject_symlink "$DEV_HANDMUX_HOME" profile
-reject_symlink "$DEV_TMUX_TMPDIR" tmux
 
 prepare_worktree_dependencies() {
   [[ "$ROOT" == "$MAIN_WORKTREE" ]] && return 0
@@ -147,8 +146,8 @@ cleanup_worktree_dependencies() {
 trap cleanup_worktree_dependencies EXIT
 
 ensure_profile() {
-  mkdir -p "$DEV_HANDMUX_HOME" "$DEV_TMUX_TMPDIR"
-  chmod 700 "$DEV_ROOT" "$DEV_HOME" "$DEV_HANDMUX_HOME" "$DEV_TMUX_TMPDIR"
+  mkdir -p "$DEV_HANDMUX_HOME"
+  chmod 700 "$DEV_ROOT" "$DEV_HOME" "$DEV_HANDMUX_HOME"
   if [[ ! -s "$DEV_TOKEN_FILE" ]]; then
     node --input-type=module -e "import crypto from 'node:crypto'; process.stdout.write(crypto.randomBytes(24).toString('base64url') + '\\n')" > "$DEV_TOKEN_FILE"
   fi
@@ -175,7 +174,6 @@ run_cli() {
     return 1
   fi
   HOME="$DEV_HOME" \
-  TMUX_TMPDIR="$DEV_TMUX_TMPDIR" \
   HANDMUX_HOST="$DEV_HOST_DEFAULT" \
   HANDMUX_PORT="$DEV_PORT" \
   HANDMUX_TOKEN="$DEV_TOKEN" \
@@ -191,7 +189,7 @@ run_cli() {
   NOTIF_DIR="$DEV_HANDMUX_HOME/notifications" \
   CODEX_HOME="$DEV_HOME/.codex" \
   HANDMUX_EXTRA_ROOTS="$ROOT" \
-  env -u TMUX -u TMUX_PANE -u HANDMUX_STATE \
+  env -u TMUX -u TMUX_PANE -u TMUX_TMPDIR -u HANDMUX_STATE \
   node "$CLI_ENTRY" "$@"
 }
 
