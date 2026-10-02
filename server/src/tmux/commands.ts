@@ -80,6 +80,28 @@ export function runTmux(args: string[]): Promise<string> {
   });
 }
 
+// Keep large payloads out of tmux's command argument buffer. `load-buffer -` reads the payload from
+// stdin, so its size is limited by the request and tmux buffer rather than the length of one command.
+function runTmuxWithInput(args: string[], input: string): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    assertRequestAuthority();
+    const child = execFile('tmux', args, { maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
+      if (err) reject(new Error(stderr?.toString() || err.message));
+      else resolve(stdout.toString());
+    });
+    const stdin = child.stdin;
+    if (!stdin) {
+      child.kill();
+      reject(new Error('tmux stdin unavailable'));
+      return;
+    }
+    // If tmux exits before consuming the payload, suppress the stream-level EPIPE; the execFile
+    // callback above reports the actual tmux failure and settles the operation.
+    stdin.on('error', () => {});
+    stdin.end(input);
+  });
+}
+
 const lines = (output: string): string[] => output.split('\n').filter((line) => line.length > 0);
 const firstRow = <T extends string[]>(rows: T[], label: string): T => {
   const row = rows[0];
@@ -281,8 +303,8 @@ const nextInputBufferName = (): string => {
 export async function sendText(paneId: string, text: string): Promise<void> {
   if (!text) return;
   const buffer = nextInputBufferName();
-  await runTmux(['set-buffer', '-b', buffer, '--', text]);
   try {
+    await runTmuxWithInput(['load-buffer', '-b', buffer, '-'], text);
     // `-p` asks tmux to wrap the payload in bracketed-paste markers when the target application has
     // enabled that terminal mode. The explicit end marker lets TUIs distinguish the pasted body from a
     // following Enter without guessing from byte timing; shells/apps without the mode still receive the
@@ -296,9 +318,18 @@ export async function sendText(paneId: string, text: string): Promise<void> {
   }
 }
 
+// tmux's command parser has a much smaller practical limit than the HTTP request body. Keep each
+// send-keys invocation comfortably below that limit while preserving byte order within this call.
+const MAX_SEND_KEYS_BYTES = 1024;
+
 export async function sendHexInput(paneId: string, hex: string): Promise<void> {
   const bytes = hex.match(/../g) || [];
-  await runTmux(['send-keys', '-t', paneId, '-H', ...bytes]);
+  for (let offset = 0; offset < bytes.length; offset += MAX_SEND_KEYS_BYTES) {
+    await runTmux([
+      'send-keys', '-t', paneId, '-H',
+      ...bytes.slice(offset, offset + MAX_SEND_KEYS_BYTES),
+    ]);
+  }
 }
 
 export async function sendEnter(paneId: string): Promise<void> {
