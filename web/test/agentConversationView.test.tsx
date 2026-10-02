@@ -416,7 +416,7 @@ describe('generic Agent Conversation UI', () => {
     }
   });
 
-  it('expands a touched Markdown word to its semantic paragraph before copying', async () => {
+  it('selects all Markdown content and copies structured paragraph breaks', async () => {
     vi.useFakeTimers();
     const originalClipboard = navigator.clipboard;
     const writeText = vi.fn(async () => {});
@@ -438,11 +438,11 @@ describe('generic Agent Conversation UI', () => {
       fireEvent.pointerDown(bold, { pointerType: 'touch', clientX: 80, clientY: 100 });
       act(() => vi.advanceTimersByTime(480));
       expect(document.getSelection()?.toString()).toBe('bold');
-      fireEvent.click(screen.getByRole('button', { name: '整段' }));
-      expect(document.getSelection()?.toString()).toBe('First bold phrase tail.');
+      fireEvent.click(screen.getByRole('button', { name: '全选' }));
+      expect(document.getSelection()?.toString()).toBe('First bold phrase tail.\nSecond paragraph.\n');
       fireEvent.click(screen.getByRole('button', { name: '复制' }));
       await act(async () => { await Promise.resolve(); });
-      expect(writeText).toHaveBeenCalledWith('First bold phrase tail.');
+      expect(writeText).toHaveBeenCalledWith('First bold phrase tail.\n\nSecond paragraph.');
     } finally {
       Object.defineProperty(navigator, 'clipboard', {
         value: originalClipboard, configurable: true,
@@ -749,21 +749,21 @@ describe('generic Agent Conversation UI', () => {
       act(() => vi.advanceTimersByTime(480));
       expect(document.getSelection()?.toString()).toBe('alpha');
 
-      const paragraph = screen.getByRole('button', { name: '整段' });
-      firePointer(paragraph, 'pointerdown', {
+      const selectAll = screen.getByRole('button', { name: '全选' });
+      firePointer(selectAll, 'pointerdown', {
         pointerType: 'touch', pointerId: 71, clientX: 20, clientY: 20,
       });
-      firePointer(paragraph, 'pointerup', {
+      firePointer(selectAll, 'pointerup', {
         pointerType: 'touch', pointerId: 71, clientX: 20, clientY: 20,
       });
       expect(release).toHaveBeenCalledWith(70);
-      fireEvent.click(paragraph);
-      expect(document.getSelection()?.toString()).toBe('alpha beta');
+      fireEvent.click(selectAll);
+      expect(document.getSelection()?.toString()).toBe('alpha beta\n');
 
       firePointer(container.querySelector('.chat-view')!, 'pointermove', {
         pointerType: 'touch', pointerId: 70, clientX: 200, clientY: 200,
       });
-      expect(document.getSelection()?.toString()).toBe('alpha beta');
+      expect(document.getSelection()?.toString()).toBe('alpha beta\n');
     } finally {
       vi.useRealTimers();
     }
@@ -915,8 +915,8 @@ describe('generic Agent Conversation UI', () => {
       fireEvent.pointerDown(bubble, { pointerType: 'touch', clientX: 40, clientY: 80 });
       act(() => vi.advanceTimersByTime(480));
       expect(document.getSelection()?.toString()).toBe('alpha');
-      expect(screen.getByRole('button', { name: '整行' })).toBeTruthy();
-      expect(screen.getByRole('button', { name: '整段' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: '全选' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: '复制' })).toBeTruthy();
 
       fireEvent.scroll(container.querySelector('.chat-scroll')!);
       expect(document.getSelection()?.toString()).toBe('alpha');
@@ -1277,8 +1277,8 @@ describe('generic Agent Conversation UI', () => {
       });
       expect(callout.style.pointerEvents).toBe('auto');
 
-      fireEvent.click(screen.getByRole('button', { name: '整段' }));
-      expect(document.getSelection()?.toString()).toBe('alpha beta gamma');
+      fireEvent.click(screen.getByRole('button', { name: '全选' }));
+      expect(document.getSelection()?.toString()).toBe('alpha beta gamma\n');
     } finally {
       if (originalCaret) Object.defineProperty(document, 'caretPositionFromPoint', originalCaret);
       else Reflect.deleteProperty(document, 'caretPositionFromPoint');

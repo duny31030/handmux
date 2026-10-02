@@ -42,14 +42,18 @@ const publicCandidates = [path.join(server, 'public'), path.join(root, 'web', 'd
 if (!publicCandidates.some((candidate) => containsClientBuild(candidate, expectedClientBuild))) {
   // A server-only build after source changes would otherwise generate a new build ID while
   // copying the previous web bundle. Rebuild the web bundle once so both halves consume the
-  // same deployment identity. A normal bundle -> build:server flow takes this fast path.
+  // same deployment identity. A normal bundle -> build:server flow takes this fast path. A
+  // server-only build context (such as the workspace Docker image) may intentionally omit the
+  // web sources and bundle script; it can still compile the server without shipping public assets.
   console.log(`[build-server] web bundle does not contain ${expectedClientBuild}; rebuilding it`);
-  execFileSync(process.execPath, [path.join(server, 'scripts', 'bundle-web.mjs')], {
-    cwd: root,
-    stdio: 'inherit',
-  });
-  buildMeta = JSON.parse(readFileSync(path.join(server, 'build-meta.json'), 'utf8'));
-  expectedClientBuild = `${packageInfo.version}+${buildMeta.buildId}`;
+  const bundleScript = path.join(server, 'scripts', 'bundle-web.mjs');
+  if (existsSync(bundleScript)) {
+    execFileSync(process.execPath, [bundleScript], { cwd: root, stdio: 'inherit' });
+    buildMeta = JSON.parse(readFileSync(path.join(server, 'build-meta.json'), 'utf8'));
+    expectedClientBuild = `${packageInfo.version}+${buildMeta.buildId}`;
+  } else if (existsSync(path.join(root, 'web')) || existsSync(path.join(server, 'public'))) {
+    throw new Error(`[build-server] no web bundle matches ${expectedClientBuild}`);
+  }
 }
 
 rmSync(out, { recursive: true, force: true });
@@ -67,8 +71,10 @@ renameSync(path.join(out, 'bin', 'handmux-main.js'), path.join(out, 'bin', 'hand
 cpSync(path.join(server, 'hooks'), path.join(out, 'hooks'), { recursive: true });
 
 const publicSource = publicCandidates.find((candidate) => containsClientBuild(candidate, expectedClientBuild));
-if (!publicSource) throw new Error(`[build-server] no web bundle matches ${expectedClientBuild}`);
-cpSync(publicSource, path.join(out, 'public'), { recursive: true });
+if (publicSource) cpSync(publicSource, path.join(out, 'public'), { recursive: true });
+else if (existsSync(path.join(root, 'web')) || existsSync(path.join(server, 'public'))) {
+  throw new Error(`[build-server] no web bundle matches ${expectedClientBuild}`);
+}
 
 // The compiled CLI reads its adjacent package metadata for --version and update checks. Keep a generated
 // copy in dist so those lookups remain deterministic in source builds and in the published tarball.
