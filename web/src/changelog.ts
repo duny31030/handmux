@@ -19,6 +19,28 @@ export interface ChangelogEntry {
 // `entryId`/`LATEST_RELEASE` use `version` when present, else `date`, as the stable unread-dot id.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.33.1',
+    date: '2026-10-02',
+    highlight: {
+      zh: '对话复制和工作区操作更顺手',
+      en: 'Smoother conversation copying and workspace actions',
+    },
+    items: {
+      zh: [
+        '对话消息长按菜单改为“全选、复制、添加到对话”；全选整条消息后浮窗继续保留。',
+        '收紧会话加号触控范围，统一会话与分屏控件的间距、图标和位置；新建窗口不再自动弹出键盘。',
+        '修复复制超长终端输入后按回车无法发送的问题。',
+        '修复跨 Session 切换 Window 无反应，以及分屏后 pane 地图没有及时刷新的问题。',
+      ],
+      en: [
+        'Long-pressing a conversation message now offers Select all, Copy, and Add to chat; the menu stays open after selecting the whole message.',
+        'Tightened the Session plus-button hit area, aligned the spacing, icons, and positions of Session and pane controls, and stopped new-window creation from opening the keyboard automatically.',
+        'Fixed long terminal input failing to send after pressing Enter.',
+        'Fixed Window switching across Sessions doing nothing, and pane maps staying stale after a split.',
+      ],
+    },
+  },
+  {
     version: '0.33.0',
     date: '2026-09-30',
     highlight: {

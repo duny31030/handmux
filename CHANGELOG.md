@@ -4,6 +4,16 @@ All notable changes to handmux. Format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Changed
+
+- 对话消息长按菜单改为“全选、复制、添加到对话”；全选整条消息后浮窗继续保留。
+- 收紧会话加号触控范围，统一会话与分屏控件的间距、图标和位置；新建窗口不再自动弹出键盘。
+
+### Fixed
+
+- 修复复制超长终端输入后按回车无法发送的问题。
+- 修复跨 Session 切换 Window 无反应，以及分屏后 pane 地图没有及时刷新的问题。
+
 ## [0.33.0] - 2026-09-30
 
 ### Added
