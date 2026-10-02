@@ -7,7 +7,7 @@
 // the window is already active). Selecting a window picks its remembered pane.
 import { useRef, useLayoutEffect, useState, useEffect } from 'react';
 import { useLongPress } from '../hooks/useLongPress.js';
-import { AgentMark } from './icons.jsx';
+import { AgentMark, ChevronDownIcon } from './icons.jsx';
 import { VIEW_LABEL } from '../inbox.js';
 import type { InboxView } from '../inbox.js';
 import { paneLayout, hasGeometry, cellFit, MAP_W, MAP_H, MAP_PAD } from '../paneLayout.js';
@@ -320,7 +320,7 @@ function PaneTab({
         </span>
         <span className="wt-sep" aria-hidden="true">│</span>
         <span className="wt-pane">{paneLabel(cur, idx)}</span>
-        <span className={`wt-caret${open ? ' open' : ''}`} aria-hidden="true">▾</span>
+        <span className={`wt-caret${open ? ' open' : ''}`} aria-hidden="true"><ChevronDownIcon /></span>
       </button>
       {open && pos && (
         layout ? (

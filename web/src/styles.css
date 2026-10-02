@@ -676,7 +676,8 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .wt-name, .wt-pane { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wt-name { max-width: 9ch; }
 .wt-pane { font-weight: 600; max-width: 11ch; }
-.wt-caret { flex: none; font-size: 11px; color: #d6e4ff; transition: transform .15s ease; }
+.wt-caret { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; color: #d6e4ff; transition: transform .15s ease; }
+.wt-caret svg { width: 14px; height: 14px; }
 .wt-caret.open { transform: rotate(180deg); }
 /* Pane menu: position:fixed (anchored by JS from the tab's rect) so the scroll strip's overflow
    can't clip it. Size to its content, not the narrow tab. */
