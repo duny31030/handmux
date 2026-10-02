@@ -196,6 +196,11 @@ interface CurrentWorkspace {
   paneId: string;
 }
 
+interface NewWindowTarget {
+  session: HostSession;
+  paneId: string;
+}
+
 interface RenameTarget {
   kind: 'session' | 'window';
   id: string;
@@ -351,6 +356,11 @@ export default function App() {
   const [usageOpen, setUsageOpen] = useState(false);
   const [bindOpen, setBindOpen] = useState(false);
   const [newWinOpen, setNewWinOpen] = useState(false);
+  const [newWindowTarget, setNewWindowTarget] = useState<NewWindowTarget | null>(null);
+  const closeNewWindow = useCallback(() => {
+    setNewWinOpen(false);
+    setNewWindowTarget(null);
+  }, []);
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null); // { kind:'session'|'window', id, name } | null
   const [manageWindow, setManageWindow] = useState<HostWindow | null>(null); // the window long-pressed for its action menu
   const [managePane, setManagePane] = useState<string | null>(null); // pane id long-pressed in the map
@@ -790,7 +800,7 @@ export default function App() {
   useBackButton(inboxOpen, () => setInboxOpen(false));
   useBackButton(usageOpen, () => setUsageOpen(false));
   useBackButton(bindOpen, () => setBindOpen(false));
-  useBackButton(newWinOpen, () => setNewWinOpen(false));
+  useBackButton(newWinOpen, closeNewWindow);
   useBackButton(ideaOpen, () => setIdeaOpen(false));
   useBackButton(!!takeoverTarget, () => setTakeoverTarget(null));
   useBackButton(!!docLinkPrompt || !!localUrlPrompt, () => {
@@ -1181,12 +1191,14 @@ export default function App() {
     }
   }, [onAuthFail]);
 
-  // Create a new window in the current session (in the current pane's dir, see POST /windows), with
-  // an optional name, then switch to it. Mirrors selectWindow's post-switch bookkeeping. Lets
-  // generic errors propagate so the modal re-enables its button; auth errors are handled here.
+  // Create a new window in the selected Session (in the selected pane's dir, see POST /windows),
+  // with an optional name. A Drawer Session plus can target a background Session, so only publish the
+  // new workspace when that target is still the visible Session; creating it must not navigate merely
+  // because the plus was tapped. Generic errors propagate so the modal re-enables its button.
   const createNewWindow = useCallback(async (name: string, cwd?: string, cmd?: string): Promise<void> => {
-    const sessionId = current?.session?.id;
-    const paneId = current?.paneId;
+    const target = newWindowTarget;
+    const sessionId = target?.session.id ?? current?.session?.id;
+    const paneId = target?.paneId ?? current?.paneId;
     if (!sessionId || !paneId) return;
     try {
       const { id } = await createWindow(sessionId, paneId, name || undefined, cwd, cmd);
@@ -1196,15 +1208,19 @@ export default function App() {
       const panes = await getPanes(window.id);
       if (!panes.length) return;
       const newPaneId = pickId(panes, getLastPane(window.id));
-      setCurrent((c) => (c ? { ...c, windows, window, panes, paneId: newPaneId } : c));
+      const targetIsCurrent = currentRef.current?.session.id === sessionId;
+      if (targetIsCurrent) {
+        setCurrent((c) => (c && c.session.id === sessionId
+          ? { ...c, windows, window, panes, paneId: newPaneId } : c));
+      }
       remember({ sessionId, windowId: window.id, paneId: newPaneId }); // sessionId → remembered as this session's last window
-      setNewWinOpen(false);
-      termRef.current?.wake?.();
+      closeNewWindow();
+      if (targetIsCurrent) termRef.current?.wake?.();
     } catch (e) {
       if (handledAuth(e)) return;
       throw e; // let the modal re-enable its button on a generic failure
     }
-  }, [current, onAuthFail]);
+  }, [current, newWindowTarget, closeNewWindow, onAuthFail]);
 
   // Rename the open session or a window. tmux rename is a shared, global change — the PC follows
   // (same family as the opt-in 适配宽度 resize). For a session we also migrate the local name pin +
@@ -1451,9 +1467,45 @@ export default function App() {
   }, [openSession, onAuthFail]);
 
   const openNewWindowForSession = useCallback(async (name: string): Promise<void> => {
-    if (current?.session.name !== name && !(await selectSession(name))) return;
+    try {
+      const workspace = currentRef.current;
+      const session = workspace?.session.name === name
+        ? workspace.session
+        : (await getSessions()).find((candidate) => candidate.name === name);
+      if (!session) return;
+
+      let paneId = workspace?.session.id === session.id ? workspace.paneId : '';
+      if (!paneId) {
+        const topology = await getSessionTopology([session.id]);
+        const row = topology.find((candidate) => candidate.session.id === session.id);
+        const targetWindow = row?.windows.find((window) => window.active) || row?.windows[0];
+        if (targetWindow) {
+          const structuralPanes = targetWindow.paneList || [];
+          const panes = structuralPanes.length >= targetWindow.panes
+            ? structuralPanes
+            : await getPanes(targetWindow.id, { fresh: true });
+          const rememberedPaneId = getLastPane(targetWindow.id);
+          paneId = panes.find((pane) => pane.id === rememberedPaneId)?.id
+            || panes.find((pane) => pane.active)?.id
+            || panes.find((pane) => pane.id === targetWindow.activePaneId)?.id
+            || panes[0]?.id
+            || '';
+        }
+      }
+      if (!paneId) return;
+      setNewWindowTarget({ session, paneId });
+      setNewWinOpen(true);
+    } catch (error) {
+      handledAuth(error);
+    }
+  }, [handledAuth]);
+
+  const openNewWindowForCurrentSession = useCallback((): void => {
+    const workspace = currentRef.current;
+    if (!workspace?.session || !workspace.paneId) return;
+    setNewWindowTarget({ session: workspace.session, paneId: workspace.paneId });
     setNewWinOpen(true);
-  }, [current?.session.name, selectSession]);
+  }, []);
 
   const renameSessionFromDrawer = useCallback(async (name: string): Promise<void> => {
     try {
@@ -3249,9 +3301,9 @@ export default function App() {
       />
       <NewWindowModal
         open={newWinOpen}
-        onClose={() => setNewWinOpen(false)}
+        onClose={closeNewWindow}
         onCreate={createNewWindow}
-        paneId={current?.paneId ?? null}
+        paneId={newWindowTarget?.paneId ?? null}
         inset={inset}
       />
       <RenameModal
@@ -3469,7 +3521,7 @@ export default function App() {
             currentPaneId={current.paneId}
             onSelectWindow={selectWindow}
             onSelectPane={selectPane}
-            onNewWindow={() => setNewWinOpen(true)}
+            onNewWindow={openNewWindowForCurrentSession}
             onManageWindow={openWindowManagement}
             onManagePane={openPaneManagement}
             onBeforePaneMapOpen={refreshPaneMap}
