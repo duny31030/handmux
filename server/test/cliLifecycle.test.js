@@ -78,6 +78,7 @@ describe('CLI lifecycle', () => {
 
   it('status reports duplicate supervisor pids and exits non-zero', () => {
     const home = tmpHome('hm-cli-');
+    const supervisorConfig = path.join(home, '.handmux', 'supervisor-config.json');
     writeState({
       supervisorPid: process.pid,
       version: VERSION,
@@ -89,8 +90,8 @@ describe('CLI lifecycle', () => {
     }, home);
     writeCache(home, { checkedAt: Date.now(), latest: VERSION, whatsNew: null });
     const ps = [
-      `${process.pid} S /usr/bin/node /x/handmux.js __supervise --payload current`,
-      '999999 S /usr/bin/node /old/handmux.js __supervise --payload stale',
+      `${process.pid} S /usr/bin/node /x/handmux.js __supervise --payload ${supervisorConfig}`,
+      `999999 S /usr/bin/node /old/handmux.js __supervise --payload ${supervisorConfig}`,
     ].join('\n');
 
     const r = status(home, ps);
@@ -101,7 +102,8 @@ describe('CLI lifecycle', () => {
 
   it('status reports a supervisor that exists without live state', () => {
     const home = tmpHome('hm-cli-');
-    const r = status(home, '888888 S /usr/bin/node /old/handmux.js __supervise --payload stale');
+    const supervisorConfig = path.join(home, '.handmux', 'supervisor-config.json');
+    const r = status(home, `888888 S /usr/bin/node /old/handmux.js __supervise --payload ${supervisorConfig}`);
     expect(r.status).toBe(1);
     expect(r.stdout).toContain('state is stale, but supervisor processes still exist (pids: 888888)');
   });

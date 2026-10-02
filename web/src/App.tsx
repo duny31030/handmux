@@ -1461,7 +1461,10 @@ export default function App() {
     try {
       const session = (await getSessions()).find((s) => s.name === name);
       if (!session) { window.alert(t('app.sessionGone', { name })); return false; }
-      const opened = await openSession(session, windowId ? { window: windowId, paneSnapshot } : null, {
+      const target = windowId
+        ? paneSnapshot === undefined ? { window: windowId } : { window: windowId, paneSnapshot }
+        : null;
+      const opened = await openSession(session, target, {
         isCancelled: () => selection !== sessionSelectionRef.current,
       });
       if (opened) setDrawerOpen(false);
