@@ -4,6 +4,8 @@ All notable changes to handmux. Format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.33.1] - 2026-10-02
+
 ### Changed
 
 - 对话消息长按菜单改为“全选、复制、添加到对话”；全选整条消息后浮窗继续保留。
