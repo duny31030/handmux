@@ -449,6 +449,7 @@ start_dev() {
     export HANDMUX_HOST="$API_HOST"
     export HANDMUX_PORT="$API_PORT"
     export HANDMUX_TOKEN="$DEV_TOKEN"
+    export HANDMUX_APP_NAME=dev
     export CLAUDE_STATE_FILE="$DEV_PROFILE/.handmux/claude-state.json"
     export CODEBUDDY_STATE_FILE="$DEV_PROFILE/.handmux/codebuddy-state.json"
     export PUSH_STORE="$DEV_PROFILE/.handmux/push-subs.json"
