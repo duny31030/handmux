@@ -5,6 +5,13 @@
 set -euo pipefail
 
 SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Keep the real user home available after the development profile replaces HOME. The server uses this
+# only for Agent conversation stores; Handmux's own profile remains under .handmux-dev.
+DEV_SHARED_HOME="${HANDMUX_SHARED_HOME:-${HOME:-}}"
+if [[ -z "$DEV_SHARED_HOME" ]]; then
+  echo "cannot determine the user's home directory for shared Agent sessions" >&2
+  exit 1
+fi
 MAIN_WORKTREE="$(git -C "$SCRIPT_ROOT" worktree list --porcelain | awk '/^worktree / { print substr($0, 10); exit }')"
 WORKTREE_NAME=""
 ACTION=""
@@ -174,6 +181,7 @@ run_cli() {
     return 1
   fi
   HOME="$DEV_HOME" \
+  HANDMUX_SHARED_HOME="$DEV_SHARED_HOME" \
   HANDMUX_HOST="$DEV_HOST_DEFAULT" \
   HANDMUX_PORT="$DEV_PORT" \
   HANDMUX_TOKEN="$DEV_TOKEN" \
@@ -182,12 +190,12 @@ run_cli() {
   HANDMUX_DEV_SOURCE="$ROOT" \
   HANDMUX_SERVICE_LABEL=com.handmux.dev \
   HANDMUX_SERVICE_UNIT=handmux-dev.service \
-  CLAUDE_STATE_FILE="$DEV_HANDMUX_HOME/claude-state.json" \
-  CODEBUDDY_STATE_FILE="$DEV_HANDMUX_HOME/codebuddy-state.json" \
+  CLAUDE_STATE_FILE="$DEV_SHARED_HOME/.handmux/claude-state.json" \
+  CODEBUDDY_STATE_FILE="$DEV_SHARED_HOME/.handmux/codebuddy-state.json" \
   PUSH_STORE="$DEV_HANDMUX_HOME/push-subs.json" \
   PREVIEW_STORE="$DEV_HANDMUX_HOME/previews.json" \
   NOTIF_DIR="$DEV_HANDMUX_HOME/notifications" \
-  CODEX_HOME="$DEV_HOME/.codex" \
+  CODEX_HOME="$DEV_SHARED_HOME/.codex" \
   HANDMUX_EXTRA_ROOTS="$ROOT" \
   env -u TMUX -u TMUX_PANE -u TMUX_TMPDIR -u HANDMUX_STATE \
   node "$CLI_ENTRY" "$@"

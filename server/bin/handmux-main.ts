@@ -333,7 +333,7 @@ function updateCmd(): void {
 // HOME/tmux/workspace as the command that installed it.
 function serviceEnvironment(): Record<string, string> {
   const values: Record<string, string> = { HOME };
-  for (const key of ['TMUX_TMPDIR', 'CODEX_HOME', 'HANDMUX_EXTRA_ROOTS', 'HANDMUX_DEV_MODE', 'HANDMUX_DEV_SOURCE']) {
+  for (const key of ['TMUX_TMPDIR', 'CODEX_HOME', 'HANDMUX_EXTRA_ROOTS', 'HANDMUX_DEV_MODE', 'HANDMUX_DEV_SOURCE', 'HANDMUX_SHARED_HOME']) {
     const value = process.env[key];
     if (value) values[key] = value;
   }

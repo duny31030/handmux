@@ -64,6 +64,7 @@ export interface BuiltinAgentRuntimeOptions
       paneCompletionToken?(paneId: string, process?: { pid: number; startedAt?: number }): string | null;
     };
   claudeProjectsRoot?: string;
+  codebuddyProjectsRoot?: string;
   claudeConversationControl?: ClaudeConversationControl;
   claudeInteractionControl?: ClaudeInteractionControl;
   codexApp?: CodexRuntimeApp;
@@ -176,6 +177,7 @@ export function createBuiltinAgentRuntime({
   codebuddyInteractionControl,
   claudeEvents,
   claudeProjectsRoot,
+  codebuddyProjectsRoot,
   claudeConversationControl,
   claudeInteractionControl,
   codexApp,
@@ -273,6 +275,7 @@ export function createBuiltinAgentRuntime({
         inbox: true,
         conversation: createCodeBuddyConversationAdapter({
           ...(conversationSessions === undefined ? {} : { sessions: conversationSessions }),
+          ...(codebuddyProjectsRoot === undefined ? {} : { projectsRoot: codebuddyProjectsRoot }),
           ...(codebuddyConversationControl === undefined ? {} : { control: codebuddyConversationControl }),
         }),
         conversationActivity: createCodebuddyConversationActivityReader(codebuddyEvents),

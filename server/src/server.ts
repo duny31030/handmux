@@ -67,6 +67,7 @@ import { ApiAccountService, apiAccountsPath } from './apiAccounts.js';
 import { ClaudeHookBridgeConnector } from '../connectors/claude/index.js';
 import { CodeBuddyHookBridgeConnector } from '../connectors/codebuddy/index.js';
 import { SERVER_VERSION, SERVER_VERSION_HEADER } from './version.js';
+import { defaultAgentIntegrationContext } from './cli/agentIntegration.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -79,6 +80,11 @@ const cfg = loadConfig();
 const token = loadToken();
 const uploadExts = loadUploadExts();
 const home = homedir();
+// The development profile isolates Handmux's own state, but Agent transcripts and live conversation
+// identities are user-wide data. Production keeps the historical HOME-based paths unchanged.
+const agentHome = process.env.HANDMUX_DEV_MODE === '1' && process.env.HANDMUX_SHARED_HOME
+  ? path.resolve(process.env.HANDMUX_SHARED_HOME)
+  : home;
 
 const apiAccounts = new ApiAccountService({ file: apiAccountsPath(home) });
 const previewDomain = process.env.HANDMUX_PREVIEW_DOMAIN || null;
@@ -176,7 +182,7 @@ const workspace = createWorkspaceRuntime({
 // workspace checkpointer, but no Codex Hook state is accepted as a fallback.
 let events: ReturnType<typeof createClaudeEvents> | null = null;
 codexApp = createCodexAppServer({
-  home,
+  home: agentHome,
   // Conversation Core is the only queue owner. The legacy file is migrated above and retained as a backup.
   outboxStore: null,
   onStateChange: () => {
@@ -217,12 +223,16 @@ const codebuddyStateFile = process.env.CODEBUDDY_STATE_FILE || codebuddyStatePat
 const codebuddyEvents = createCodebuddyEvents({ stateFile: codebuddyStateFile });
 const agentProcess = createLocalAgentProcessContext();
 const agentRuntime = createBuiltinAgentRuntime({
-  home,
+  home: agentHome,
   panes: agentPanes,
   process: agentProcess,
   stateDirectory: agentRuntimeDirectory,
   ...(conversationStartupBlockReason === undefined ? {} : { conversationStartupBlockReason }),
   claudeEvents: events,
+  claudeProjectsRoot: path.join(agentHome, '.claude', 'projects'),
+  codebuddyProjectsRoot: path.join(agentHome, '.codebuddy', 'projects'),
+  codexSessionsRoot: path.join(agentHome, '.codex', 'sessions'),
+  piSessionsRoot: path.join(agentHome, '.pi', 'agent', 'sessions'),
   codebuddyEvents,
   codebuddyConversationControl: {
     sendPrompt: (paneId, text, guard) => sendCodeBuddyPanePrompt(
@@ -258,7 +268,7 @@ const agentRuntime = createBuiltinAgentRuntime({
       const environment = await workspaceTmux.observeEnvironment();
       return environment.status === 'present' ? environment.tmuxServerId : null;
     },
-    inspectOpenSession: (pid) => inspectCodexOpenRootSession(pid, codexSessionsDir(home)),
+    inspectOpenSession: (pid) => inspectCodexOpenRootSession(pid, codexSessionsDir(agentHome)),
     runPaneCommand: (pane, command) => commands.runPaneCommand(pane, command),
   },
   codexClear: async (pane, threadId) => {
@@ -318,7 +328,7 @@ workspace.start().catch(() => {});
 // handmux-write.cjs land via `./deploy.sh` alone — no phone re-enable. A strict no-op unless our hooks are
 // already installed; best-effort and must never block or crash startup (pure fs, no subprocess).
 try {
-  syncHooks(home, {
+  syncHooks(agentHome, {
     srcDir: path.resolve(here, '../hooks'),
     stateFile,
   });
@@ -326,7 +336,7 @@ try {
 // The same roll-forward for an already-opted-in CodeBuddy: newly-added lifecycle events and a refreshed
 // notify script land via a plain restart. A strict no-op unless its hooks are installed.
 try {
-  syncCodebuddyHooks(home, {
+  syncCodebuddyHooks(agentHome, {
     srcDir: path.resolve(here, '../hooks'),
     stateFile: codebuddyStateFile,
   });
@@ -392,6 +402,13 @@ app.use('/api/browser-proxy', apiRequestContext(), authenticate, express.json(),
 app.use('/api', createApiRouter({
   token, events, uploadExts, previews, shortcuts: cfg.shortcuts, workspace, previewDomain,
   agentRuntime, projectTask, apiAccounts, authentication: authenticate, deviceAuth: true, shortcutState,
+  agentIntegrationContext: defaultAgentIntegrationContext({
+    home: agentHome,
+    piEntryFile: path.resolve(here, '../connectors/pi/index.js'),
+    hooksSrcDir: path.resolve(here, '../hooks'),
+    claudeStateFile: stateFile,
+    codebuddyStateFile,
+  }),
 }));
 app.use('/preview', preview.router);
 app.use(preview.refererFallback);
