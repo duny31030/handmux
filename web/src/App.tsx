@@ -3018,6 +3018,7 @@ export default function App() {
           <BulbIcon />
           {ideaCount > 0 && <span className="idea-badge">{ideaCount}</span>}
         </button>
+        {inboxControl}
         <button className="topbar-icon" onClick={() => setUsageOpen(true)} aria-label={t('usage.title')} title={t('usage.title')}><GaugeIcon /></button>
         <button className={`topbar-icon browser-entry${browserStatus ? ` ${browserStatus}` : ''}`}
           onClick={() => browser.setOpen(true)} aria-label={t('app.browser')} title={t('app.browser')}>
@@ -3025,7 +3026,6 @@ export default function App() {
         </button>
         <button className="topbar-icon" onClick={() => setGitOpen(true)} aria-label="Git" title="Git"><GitIcon /></button>
         <button className="topbar-icon" onClick={reopenFiles} aria-label={t('app.files')} title={t('app.files')}><FolderIcon /></button>
-        {inboxControl}
       </header>}
       <UsagePage
         open={usageOpen}
