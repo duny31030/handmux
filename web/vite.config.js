@@ -80,6 +80,7 @@ function asyncAppCss() {
 function appNameShell() {
   return {
     name: 'app-name-shell',
+    apply: 'serve',
     transformIndexHtml(html) {
       if (!appName) return html;
       const escaped = escapeHtml(appName);
