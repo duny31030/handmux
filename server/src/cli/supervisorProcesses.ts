@@ -2,9 +2,11 @@
 // so an older restart race can leave a live supervisor that is no longer referenced there. Scan the real
 // argv instead: every packaged/manual/service supervisor has this stable signature across install paths.
 import { spawnSync } from 'node:child_process';
+import path from 'node:path';
 
-export function parseSupervisorPids(psOut: unknown): number[] {
+export function parseSupervisorPids(psOut: unknown, home?: string): number[] {
   const pids: number[] = [];
+  const expectedConfig = home ? path.resolve(home, '.handmux', 'supervisor-config.json') : null;
   for (const line of String(psOut).split('\n')) {
     const m = line.match(/^\s*(\d+)\s+(\S+)\s+(.*)$/);
     const pidText = m?.[1];
@@ -14,7 +16,11 @@ export function parseSupervisorPids(psOut: unknown): number[] {
     // Anchor the executable as Node and handmux.js as its direct script argument. A shell command or test
     // runner can contain the same words in its own command text; it is not a supervisor and must not match.
     if (/^(?:\S*\/)?node(?:js)?\s+(?:"[^"]*(?:handmux\.js|\/handmux)"|'[^']*(?:handmux\.js|\/handmux)'|\S*(?:handmux\.js|\/handmux))\s+__supervise\s+--payload(?:-file)?(?:\s|$)/.test(args)) {
-      pids.push(Number(pidText));
+      if (!expectedConfig) pids.push(Number(pidText));
+      else {
+        const payload = args.match(/--payload(?:-file)?\s+([^\s]+)/)?.[1];
+        if (payload && path.resolve(payload) === expectedConfig) pids.push(Number(pidText));
+      }
     }
   }
   return [...new Set(pids)].sort((a, b) => a - b);
@@ -71,14 +77,15 @@ interface ProcessTableResult {
 
 interface ScanSupervisorOptions {
   run?: (command: string, args: readonly string[], options: { encoding: 'utf8' }) => ProcessTableResult | null | undefined;
+  home?: string;
 }
 
-export function scanSupervisorPids({ run = spawnSync }: ScanSupervisorOptions = {}): SupervisorScanResult {
+export function scanSupervisorPids({ run = spawnSync, home }: ScanSupervisorOptions = {}): SupervisorScanResult {
   try {
     // `-x` includes this user's detached/no-TTY daemons without crossing into other users' processes.
     const r = run('ps', ['-x', '-o', 'pid=,stat=,args='], { encoding: 'utf8' });
     if (!r || r.status !== 0) return { ok: false, pids: [] };
-    return { ok: true, pids: parseSupervisorPids(r.stdout) };
+    return { ok: true, pids: parseSupervisorPids(r.stdout, home) };
   } catch {
     return { ok: false, pids: [] };
   }

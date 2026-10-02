@@ -13,12 +13,6 @@ const devApiHost = process.env.HANDMUX_DEV_API_HOST || '127.0.0.1';
 const devApiTargetHost = devApiHost.includes(':') && !devApiHost.startsWith('[')
   ? `[${devApiHost}]` : devApiHost;
 const devApiOrigin = `http://127.0.0.1:${devApiPort}`;
-const appName = process.env.HANDMUX_APP_NAME?.trim() || null;
-
-function escapeHtml(value) {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 let buildMeta = null;
 try {
   const value = JSON.parse(readFileSync(buildMetaPath, 'utf8'));
@@ -74,45 +68,13 @@ function asyncAppCss() {
   };
 }
 
-// Vite serves the source HTML directly during development, so the API server's
-// runtime app-name rewrite does not run. Keep the dev entry's browser tab,
-// splash, and install label in sync with HANDMUX_APP_NAME instead.
-function appNameShell() {
-  return {
-    name: 'app-name-shell',
-    apply: 'serve',
-    transformIndexHtml(html) {
-      if (!appName) return html;
-      const escaped = escapeHtml(appName);
-      return html
-        .replace(/<title>[^<]*<\/title>/, `<title>${escaped}</title>`)
-        .replace(/(<meta name="apple-mobile-web-app-title" content=")[^"]*(")/, `$1${escaped}$2`);
-    },
-    configureServer(server) {
-      if (!appName) return;
-      server.middlewares.use((req, res, next) => {
-        let pathname;
-        try { pathname = new URL(req.url || '/', 'http://vite.local').pathname; } catch { return next(); }
-        if (pathname !== '/manifest.webmanifest') return next();
-        try {
-          const manifest = JSON.parse(readFileSync(path.resolve(here, 'public/manifest.webmanifest'), 'utf8'));
-          manifest.name = appName;
-          manifest.short_name = appName;
-          res.statusCode = 200;
-          res.setHeader('Content-Type', 'application/manifest+json');
-          res.setHeader('Cache-Control', 'no-store');
-          res.end(JSON.stringify(manifest));
-        } catch { next(); }
-      });
-    },
-  };
-}
-
+// The packaged server applies the runtime app name for both production and the isolated `hm` instance.
+// Vite remains available for standalone frontend work, but it is not the development entrypoint.
 export default defineConfig({
   define: {
     __HANDMUX_CLIENT_VERSION__: JSON.stringify(clientServerVersion),
   },
-  plugins: [resolveMigratedTypeScript(), react(), appNameShell(), asyncAppCss()],
+  plugins: [resolveMigratedTypeScript(), react(), asyncAppCss()],
   server: {
     host: true,
     port: devWebPort, // 开发前端(vite dev)监听端口；API 端口可由 HANDMUX_DEV_API_PORT 覆盖

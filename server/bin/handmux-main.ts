@@ -100,6 +100,14 @@ const ownerPidOf = (error: unknown): number | null => {
 };
 const stringFlag = (value: unknown): string | null => typeof value === 'string' && value ? value : null;
 
+// A restricted development shell may not permit `ps`. The dev profile has its own HOME, port and tmux
+// socket, so its state file is a sufficient lifecycle anchor when the process-table backstop is unavailable.
+// Production keeps the strict scan failure because it must never risk starting a duplicate supervisor.
+function scanCurrentSupervisors(): ReturnType<typeof scanSupervisorPids> {
+  const result = scanSupervisorPids({ home: HOME });
+  return result.ok || process.env.HANDMUX_DEV_MODE !== '1' ? result : { ok: true, pids: [] };
+}
+
 // Agent launchers own every token after their built-in slug. Run this before Handmux parseArgs, locale and
 // config peeking so Agent flags such as --config/--lang (including duplicates and `--`) stay byte-for-byte
 // positional input and a broken Handmux config cannot block the Agent from starting.
@@ -285,6 +293,28 @@ function currentVersion(): string {
 // restart a running instance; on success we refresh the update cache so the "upgrade available" notice
 // clears, and remind them to `handmux restart` to actually run the new code.
 function updateCmd(): void {
+  if (process.env.HANDMUX_DEV_MODE === '1') {
+    const source = process.env.HANDMUX_DEV_SOURCE;
+    if (!source) {
+      console.error('development update source is not configured; run ./dev.sh deploy');
+      process.exitCode = 1;
+      return;
+    }
+    console.log('Updating the development package from the source checkout…');
+    const serverDir = path.join(source, 'server');
+    const bundle = spawnSync('npm', ['run', 'bundle'], { cwd: serverDir, stdio: 'inherit' });
+    const build = bundle.status === 0
+      ? spawnSync('npm', ['run', 'build:server'], { cwd: serverDir, stdio: 'inherit' })
+      : bundle;
+    if (build.status !== 0) {
+      console.error('✗ Development update failed.');
+      process.exitCode = 1;
+      return;
+    }
+    console.log('✓ Development package updated.');
+    console.log('  run `hm restart` to run the new version.');
+    return;
+  }
   if (isBrewInstall(SELF_REAL)) { console.log(t('update.brew')); return; }
   console.log(t('update.running'));
   const r = spawnSync('npm', ['install', '-g', `${PKG_NAME}@latest`], { stdio: 'inherit' });
@@ -296,6 +326,18 @@ function updateCmd(): void {
     console.log(t('update.failed', { pkg: PKG_NAME }));
     process.exitCode = 1;
   }
+}
+
+// launchd/systemd do not inherit the shell variables used by an isolated `hm` profile. Persist only
+// path-like runtime settings (never tokens or credentials) so a development service starts in the same
+// HOME/tmux/workspace as the command that installed it.
+function serviceEnvironment(): Record<string, string> {
+  const values: Record<string, string> = { HOME };
+  for (const key of ['TMUX_TMPDIR', 'CODEX_HOME', 'HANDMUX_EXTRA_ROOTS']) {
+    const value = process.env[key];
+    if (value) values[key] = value;
+  }
+  return values;
 }
 
 // Best-effort upgrade notice from the cached "latest version" (never blocks; refreshes in the background).
@@ -325,7 +367,7 @@ async function start(authDefaults?: { token?: string }): Promise<void> {
 
   // state.json cannot represent two supervisors. Refuse to add another when the real process table says
   // the state is missing/stale or a historical duplicate already exists; `handmux stop` is the repair path.
-  const supervisors = scanSupervisorPids();
+  const supervisors = scanCurrentSupervisors();
   if (!supervisors.ok) {
     console.error(t('lifecycle.scanFailed'));
     process.exitCode = 1;
@@ -402,7 +444,11 @@ async function start(authDefaults?: { token?: string }): Promise<void> {
   // Once autostart is registered, the service manager must remain the sole owner of the supervisor.
   // Rewriting + restarting the entry also refreshes baked config and upgrade-sensitive executable paths.
   if (isServiceInstalled(HOME)) {
-    try { installService(supervisorLaunchArgs(cfg, { home: HOME, entry: SELF }), { home: HOME, log: { log() {} } }); }
+    try {
+      installService(supervisorLaunchArgs(cfg, { home: HOME, entry: SELF }), {
+        home: HOME, log: { log() {} }, environment: serviceEnvironment(),
+      });
+    }
     catch (error) { console.error(t('err.generic', { msg: errorMessage(error) })); process.exit(1); }
     console.log(t('start.starting', { tunnel: cfg.tunnel, port: cfg.port }));
     await waitAndPrint(true);
@@ -436,7 +482,7 @@ function reapOrphans(st: StoredState): void {
 // until none remain. This both repairs historical duplicates and prevents restart from racing a straggler.
 async function stopAndWait(): Promise<boolean> {
   const st = readState(HOME);
-  const initial = scanSupervisorPids();
+  const initial = scanCurrentSupervisors();
   if (!initial.ok) {
     console.error(t('lifecycle.scanFailed'));
     process.exitCode = 1;
@@ -459,7 +505,9 @@ async function stopAndWait(): Promise<boolean> {
     console.log(managed ? t('stop.stoppedManaged') : t('stop.notRunning'));
     return true;
   }
-  const result = await terminateSupervisorPids([...seen]);
+  const result = await terminateSupervisorPids([...seen], {
+    scan: scanCurrentSupervisors,
+  });
   if (!result.ok) {
     console.error(t(result.reason === 'scan' ? 'lifecycle.scanFailed' : 'stop.timeout', {
       pids: result.remaining.join(', '),
@@ -467,6 +515,10 @@ async function stopAndWait(): Promise<boolean> {
     process.exitCode = 1;
     return false;
   }
+  // A supervisor can disappear before it reaps its server/tunnel children (for example after a shell or
+  // service-manager interruption). Always retry the state-recorded child pids after the supervisor is gone;
+  // this is idempotent for a clean shutdown and prevents the next start from inheriting a project lock.
+  if (st) reapOrphans(st);
   clearState(HOME);
   console.log(t(result.pids.length > 1 ? 'stop.stoppedMany' : 'stop.stopped', {
     pid: result.pids[0], pids: result.pids.join(', '),
@@ -477,7 +529,7 @@ async function stopAndWait(): Promise<boolean> {
 async function status(): Promise<void> {
   const st = readState(HOME);
   const installed = currentVersion();
-  const supervisors = scanSupervisorPids();
+  const supervisors = scanCurrentSupervisors();
   if (!supervisors.ok) console.warn(t('status.scanFailed'));
   const stateAlive = !!(st && isAlive(st.supervisorPid));
   if (supervisors.ok && supervisors.pids.length && !stateAlive) {
@@ -563,7 +615,7 @@ async function serviceInstall(): Promise<void> {
   // Converge a pre-existing manual run (and any old broken managed/manual pair) before loading the service.
   // Otherwise the very first `service install` can itself create two supervisors fighting over one port.
   const existing = readState(HOME);
-  const supervisors = scanSupervisorPids();
+  const supervisors = scanCurrentSupervisors();
   if (!supervisors.ok) {
     console.error(t('lifecycle.scanFailed'));
     process.exitCode = 1;
@@ -573,7 +625,7 @@ async function serviceInstall(): Promise<void> {
     if (!await stopAndWait()) return;
   }
   const args = supervisorLaunchArgs(cfg, { home: HOME, entry: SELF });
-  try { installService(args, { home: HOME }); }
+  try { installService(args, { home: HOME, environment: serviceEnvironment() }); }
   catch (error) { console.error(t('err.generic', { msg: errorMessage(error) })); process.exit(1); }
   console.log(t('service.installed'));
 }

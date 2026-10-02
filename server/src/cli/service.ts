@@ -8,8 +8,16 @@ import { spawnSync } from 'node:child_process';
 import { pocketHome, logPath } from './state.js';
 import { ensurePrivateDirectorySync } from '../privateStateStore.js';
 
-export const LABEL = 'com.handmux.agent';
-export const UNIT = 'handmux.service';
+// Development launchers set these names explicitly so installing or removing `hm service`
+// can never touch the production autostart entry. The normal `handmux` command keeps the
+// long-standing production names even if an unrelated shell variable happens to be present.
+const isDevelopment = process.env.HANDMUX_DEV_MODE === '1';
+export const LABEL = isDevelopment
+  ? (process.env.HANDMUX_SERVICE_LABEL || 'com.handmux.dev')
+  : 'com.handmux.agent';
+export const UNIT = isDevelopment
+  ? (process.env.HANDMUX_SERVICE_UNIT || 'handmux-dev.service')
+  : 'handmux.service';
 
 export interface ServiceExecResult {
   status: number | null;
@@ -20,6 +28,8 @@ export interface ServiceExecOptions {
   encoding?: 'utf8';
   stdio?: 'ignore';
 }
+
+export type ServiceEnvironment = Readonly<Record<string, string>>;
 
 export type ServiceExec = (
   command: string,
@@ -34,6 +44,7 @@ interface ServiceOptions {
   exec?: ServiceExec;
   log?: ServiceLogger;
   pathEnv?: string;
+  environment?: ServiceEnvironment;
 }
 
 const defaultExec: ServiceExec = (command, args, options) => {
@@ -58,17 +69,22 @@ const xmlEscape = (value: string): string => value.replace(/&/g, '&amp;').replac
 // launchd does not inherit the interactive shell PATH. Persist the caller's PATH so the supervised Server
 // resolves the same npm/Homebrew/nvm/volta Agent executables that `handmux start` could resolve.
 // args = full argv for the process (node, script, __supervise, --payload-file, path).
-export function plistFor({ args, log, label = LABEL, pathEnv }: {
+export function plistFor({ args, log, label = LABEL, pathEnv, environment }: {
   args: readonly string[];
   log: string;
   label?: string;
   pathEnv?: string;
+  environment?: ServiceEnvironment;
 }): string {
   const items = args.map((a) => `    <string>${xmlEscape(a)}</string>`).join('\n');
-  const environment = pathEnv ? `
+  const variables = {
+    ...(pathEnv ? { PATH: pathEnv } : {}),
+    ...(environment ?? {}),
+  };
+  const environmentBlock = Object.keys(variables).length ? `
   <key>EnvironmentVariables</key>
   <dict>
-    <key>PATH</key><string>${xmlEscape(pathEnv)}</string>
+${Object.entries(variables).map(([key, value]) => `    <key>${xmlEscape(key)}</key><string>${xmlEscape(value)}</string>`).join('\n')}
   </dict>` : '';
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -79,7 +95,7 @@ export function plistFor({ args, log, label = LABEL, pathEnv }: {
   <array>
 ${items}
   </array>
-${environment}
+${environmentBlock}
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>StandardOutPath</key><string>${xmlEscape(log)}</string>
@@ -92,16 +108,26 @@ ${environment}
 // systemd --user may likewise start with a manager PATH rather than the invoking shell's. ExecStart needs
 // a single command line; args are space-joined (our args have no spaces except an absolute path with none
 // in practice — quote the script path defensively).
-export function unitFor({ args, pathEnv }: { args: readonly string[]; pathEnv?: string }): string {
+export function unitFor({ args, pathEnv, environment }: {
+  args: readonly string[];
+  pathEnv?: string;
+  environment?: ServiceEnvironment;
+}): string {
   const cmd = args.map((a) => (/\s/.test(a) ? JSON.stringify(a) : a)).join(' ');
-  const environment = pathEnv ? `Environment=${JSON.stringify(`PATH=${pathEnv}`)}\n` : '';
+  const variables = {
+    ...(pathEnv ? { PATH: pathEnv } : {}),
+    ...(environment ?? {}),
+  };
+  const environmentBlock = Object.entries(variables)
+    .map(([key, value]) => `Environment=${JSON.stringify(`${key}=${value}`)}`)
+    .join('\n');
   return `[Unit]
 Description=handmux — drive your tmux from your phone
 After=network-online.target
 
 [Service]
 ExecStart=${cmd}
-${environment}Restart=always
+${environmentBlock ? `${environmentBlock}\n` : ''}Restart=always
 RestartSec=2
 
 [Install]
@@ -114,6 +140,7 @@ export function installService(
   {
     home, platform = process.platform, exec = defaultExec, log = console,
     pathEnv = process.env.PATH,
+    environment,
   }: ServiceOptions,
 ): string {
   ensurePrivateDirectorySync(pocketHome(home));
@@ -124,7 +151,7 @@ export function installService(
   if (platform === 'darwin') {
     const p = plistPath(home);
     fs.mkdirSync(path.dirname(p), { recursive: true });
-    fs.writeFileSync(p, plistFor({ args, log: runtimeLog, ...(pathEnv ? { pathEnv } : {}) }), { mode: 0o600 });
+    fs.writeFileSync(p, plistFor({ args, log: runtimeLog, ...(pathEnv ? { pathEnv } : {}), ...(environment ? { environment } : {}) }), { mode: 0o600 });
     fs.chmodSync(p, 0o600);
     exec('launchctl', ['unload', p], { stdio: 'ignore' }); // best-effort: clear any prior load
     const r = exec('launchctl', ['load', '-w', p], { encoding: 'utf8' });
@@ -135,7 +162,7 @@ export function installService(
   if (platform === 'linux') {
     const p = unitPath(home);
     fs.mkdirSync(path.dirname(p), { recursive: true });
-    fs.writeFileSync(p, unitFor({ args, ...(pathEnv ? { pathEnv } : {}) }), { mode: 0o600 });
+    fs.writeFileSync(p, unitFor({ args, ...(pathEnv ? { pathEnv } : {}), ...(environment ? { environment } : {}) }), { mode: 0o600 });
     fs.chmodSync(p, 0o600);
     exec('systemctl', ['--user', 'daemon-reload'], { stdio: 'ignore' });
     const enabled = exec('systemctl', ['--user', 'enable', UNIT], { encoding: 'utf8' });
