@@ -1127,7 +1127,7 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .session-section-toggle svg { width:12px; height:12px; transition:transform .22s cubic-bezier(.22,.8,.25,1); }
 .session-section-toggle:not(.is-open) svg { transform:rotate(-90deg); }
 .session-section-toggle:active { color:rgba(235,235,245,.70); }
-.session-section-new { flex:none; display:grid; place-items:center; width:20px; height:20px; margin-left:auto; padding:0; border:0; border-radius:0; background:transparent !important; box-shadow:none !important; color:rgba(235,235,245,.88); -webkit-tap-highlight-color:transparent; }
+.session-section-new { flex:none; display:grid; place-items:center; width:20px; height:20px; margin-left:auto; margin-right:12px; padding:0; border:0; border-radius:0; background:transparent !important; box-shadow:none !important; color:rgba(235,235,245,.88); -webkit-tap-highlight-color:transparent; }
 .session-section-new svg { width:20px; height:20px; }
 .session-section-new:active { background:transparent; color:#fff; }
 .session-section-menu { flex:none; display:grid; place-items:center; width:20px; height:20px; margin-left:0; padding:0; border:0; border-radius:0; background:transparent !important; box-shadow:none !important; color:rgba(235,235,245,.88); -webkit-tap-highlight-color:transparent; }
@@ -1162,7 +1162,7 @@ button.settings-page-row:disabled, .settings-page-row.disabled { color: rgba(235
 .session-window-inbox-dot.error { background:var(--red); }
 .session-window-inbox-dot.working { background:var(--blue); animation:tw-blink 1s ease-in-out infinite; }
 .session-window-actions { flex:none; min-width:0; margin-left:auto; display:inline-flex; align-items:center; gap:0; }
-.session-window-pane-trigger { position:relative; flex:none; min-width:32px; height:38px; min-height:38px; margin-left:0; padding:0 6px; display:inline-flex; align-items:center; justify-content:flex-end; gap:4px; border:0; border-radius:10px; background:transparent; color:rgba(235,235,245,.78); font:inherit; font-weight:500; line-height:21px; touch-action:manipulation; -webkit-tap-highlight-color:transparent; transition:background .15s ease, color .15s ease; }
+.session-window-pane-trigger { position:relative; flex:none; min-width:32px; height:38px; min-height:38px; margin-left:0; margin-right:6px; padding:0 6px; display:inline-flex; align-items:center; justify-content:flex-end; gap:4px; border:0; border-radius:10px; background:transparent; color:rgba(235,235,245,.78); font:inherit; font-weight:500; line-height:21px; touch-action:manipulation; -webkit-tap-highlight-color:transparent; transition:background .15s ease, color .15s ease; }
 .session-window-pane-inbox-dot { position:absolute; top:3px; right:3px; width:7px; height:7px; border:1px solid rgba(235,235,245,.76); border-radius:50%; background:rgba(235,235,245,.42); pointer-events:none; }
 .session-window-pane-inbox-dot.needs { background:#e0a020; }
 .session-window-pane-inbox-dot.done { background:var(--green); }
