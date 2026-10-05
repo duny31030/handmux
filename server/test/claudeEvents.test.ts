@@ -71,6 +71,15 @@ describe('classifyEvent', () => {
     expect(classifyEvent('stopfail', { error: 'boom raw' })).toEqual({ kind: 'error', msg: 'boom raw' });
     expect(classifyEvent('stopfail', {})).toEqual({ kind: 'error', msg: '' }); // unknown shape → bare error
   });
+  it('stopfail with unknown type classifies insufficient balance from the assistant error', () => {
+    expect(classifyEvent('stopfail', {
+      hook_event_name: 'StopFailure',
+      error: 'unknown',
+      last_assistant_message: 'API Error: 402 Insufficient Balance (request_id: req-123)',
+    })).toEqual({ kind: 'error', msg: '额度/账单问题' });
+    expect(classifyEvent('stopfail', { error: 'unknown', last_assistant_message: 'API Error: something else' }))
+      .toEqual({ kind: 'error', msg: '未知错误' });
+  });
   it('start → null (SessionStart just (re)binds pane→session; a fresh/cleared session is neutral, not 进行中)', () => {
     expect(classifyEvent('start', { source: 'clear' })).toBeNull();
     expect(classifyEvent('start', { source: 'startup' })).toBeNull();

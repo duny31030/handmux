@@ -184,6 +184,12 @@ export function hookErrorMessage(body: Record<string, unknown>): string {
       : typeof body.type === 'string' ? body.type
         : typeof body.error === 'string' ? body.error
           : typeof error?.type === 'string' ? error.type : '';
+  const assistantMessage = typeof body.last_assistant_message === 'string'
+    ? body.last_assistant_message : '';
+  const billingError = ERROR_LABEL.billing_error;
+  if (type === 'unknown' && billingError && /\binsufficient\s+balance\b/i.test(assistantMessage)) {
+    return billingError;
+  }
   const label = ERROR_LABEL[type];
   if (label) return label;
   const raw = typeof body.error === 'string' ? body.error
