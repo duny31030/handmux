@@ -19,6 +19,22 @@ export interface ChangelogEntry {
 // `entryId`/`LATEST_RELEASE` use `version` when present, else `date`, as the stable unread-dot id.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.33.3',
+    date: '2026-10-06',
+    highlight: {
+      zh: 'Claude 余额不足提示更明确',
+      en: 'Clearer Claude insufficient-balance errors',
+    },
+    items: {
+      zh: [
+        '修复 Claude API 余额不足时错误显示为未知错误的问题。',
+      ],
+      en: [
+        'Fixed Claude API insufficient-balance failures being shown as unknown errors.',
+      ],
+    },
+  },
+  {
     version: '0.33.2',
     date: '2026-10-03',
     highlight: {
