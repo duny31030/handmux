@@ -4,6 +4,8 @@ All notable changes to handmux. Format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.33.3] - 2026-10-06
+
 ### Fixed
 
 - 修复 Claude Code API 余额不足被归类为未知错误、无法显示账单问题提示的问题。
